@@ -23,7 +23,7 @@ export function SettingsPage({ secrets, setSecrets }: { secrets: Record<SecretKe
   return (
     <div className="mx-auto max-w-4xl space-y-5 px-8 py-6">
       <header>
-        <p className="text-xs font-medium uppercase tracking-wider text-brand-400">Settings</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-brand-600 dark:text-brand-400">Settings</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">App settings</h1>
         <p className="mt-1 text-sm text-ink-400">Shared by every profile on this computer. Keys are encrypted with your system keychain and never leave this machine except to the service they belong to.</p>
       </header>
@@ -40,7 +40,7 @@ export function SettingsPage({ secrets, setSecrets }: { secrets: Record<SecretKe
         <div className="mb-4 flex gap-1 rounded-xl bg-ink-850 p-1 w-fit">
           {(['jsearch', 'adzuna'] as const).map((p) => (
             <button key={p} onClick={() => save({ jobApi: { ...s.jobApi, provider: p } })}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium ${s.jobApi.provider === p ? 'bg-ink-700 text-white' : 'text-ink-400'}`}>
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium ${s.jobApi.provider === p ? 'bg-ink-900 text-ink-100 shadow-sm' : 'text-ink-400'}`}>
               {p === 'jsearch' ? 'JSearch (RapidAPI)' : 'Adzuna'}
             </button>
           ))}

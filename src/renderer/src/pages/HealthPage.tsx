@@ -29,18 +29,18 @@ export function HealthPage({ running }: { running: boolean }): ReactNode {
   return (
     <div className="mx-auto max-w-5xl space-y-5 px-8 py-6">
       <header>
-        <p className="text-xs font-medium uppercase tracking-wider text-brand-400">Status</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-brand-600 dark:text-brand-400">Status</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">Health & quotas</h1>
         <p className="mt-1 text-sm text-ink-400">Everything the daily run depends on, at a glance. Refreshes every 10 seconds.</p>
       </header>
 
       <div className="grid grid-cols-3 gap-4">
         <div className="card p-5">
-          <div className="flex items-center gap-2 text-sm font-medium"><Cpu size={16} className="text-brand-400" /> AI engine <span className="ml-auto"><Dot tone={llmTone} /></span></div>
+          <div className="flex items-center gap-2 text-sm font-medium"><Cpu size={16} className="text-brand-600 dark:text-brand-400" /> AI engine <span className="ml-auto"><Dot tone={llmTone} /></span></div>
           <p className="mt-2 truncate text-xs text-ink-400" title={h.llm.label}>{h.llm.label}</p>
           <div className="mt-3 space-y-1.5 text-xs">
-            {h.llm.okAt && <p className="text-emerald-300">Last success {timeAgo(h.llm.okAt)}{h.llm.okVia ? ` · ${h.llm.okVia}` : ''}</p>}
-            {h.llm.failAt && <p className="text-rose-300" title={h.llm.failMsg}>Last failure {timeAgo(h.llm.failAt)}</p>}
+            {h.llm.okAt && <p className="text-emerald-700 dark:text-emerald-300">Last success {timeAgo(h.llm.okAt)}{h.llm.okVia ? ` · ${h.llm.okVia}` : ''}</p>}
+            {h.llm.failAt && <p className="text-rose-700 dark:text-rose-300" title={h.llm.failMsg}>Last failure {timeAgo(h.llm.failAt)}</p>}
             {!h.llm.okAt && !h.llm.failAt && <p className="text-ink-400">No calls since the app started.</p>}
           </div>
           {h.llm.chain.length > 1 && (
@@ -53,7 +53,7 @@ export function HealthPage({ running }: { running: boolean }): ReactNode {
         </div>
 
         <div className="card p-5">
-          <div className="flex items-center gap-2 text-sm font-medium"><Search size={16} className="text-brand-400" /> Job search API <span className="ml-auto"><Dot tone={!q.keySet ? 'bad' : pct > 85 ? 'warn' : 'ok'} /></span></div>
+          <div className="flex items-center gap-2 text-sm font-medium"><Search size={16} className="text-brand-600 dark:text-brand-400" /> Job search API <span className="ml-auto"><Dot tone={!q.keySet ? 'bad' : pct > 85 ? 'warn' : 'ok'} /></span></div>
           <p className="mt-2 text-xs text-ink-400">{q.provider === 'jsearch' ? 'JSearch (RapidAPI) · free Basic' : 'Adzuna'}</p>
           {q.provider === 'jsearch' && (
             <>
@@ -64,11 +64,11 @@ export function HealthPage({ running }: { running: boolean }): ReactNode {
               <p className="mt-2 text-xs text-ink-400">{runsLeft != null ? `≈ ${runsLeft} daily runs left this month` : ''}</p>
             </>
           )}
-          {!q.keySet && <p className="mt-2 text-xs text-rose-300">No key set — Settings → Job search API.</p>}
+          {!q.keySet && <p className="mt-2 text-xs text-rose-700 dark:text-rose-300">No key set — Settings → Job search API.</p>}
         </div>
 
         <div className="card p-5">
-          <div className="flex items-center gap-2 text-sm font-medium"><Clock size={16} className="text-brand-400" /> Schedule <span className="ml-auto"><Dot tone={h.schedule.enabled ? 'ok' : 'off'} /></span></div>
+          <div className="flex items-center gap-2 text-sm font-medium"><Clock size={16} className="text-brand-600 dark:text-brand-400" /> Schedule <span className="ml-auto"><Dot tone={h.schedule.enabled ? 'ok' : 'off'} /></span></div>
           <p className="mt-2 text-xs text-ink-400">{h.schedule.enabled ? `Daily at ${h.schedule.time}${h.schedule.weekdaysOnly ? ', weekdays' : ''}` : 'Off'}</p>
           {h.schedule.nextRunAt && (
             <p className="mt-3 text-sm">Next: {new Date(h.schedule.nextRunAt).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}</p>
@@ -82,7 +82,7 @@ export function HealthPage({ running }: { running: boolean }): ReactNode {
           {h.profiles.map((p: any) => {
             const r = p.lastRun
             const RIcon = !r ? CircleDashed : r.status === 'ok' ? CheckCircle2 : r.status === 'running' ? Spinner : r.status === 'partial' ? AlertTriangle : XCircle
-            const rTone = !r ? 'text-ink-400' : { ok: 'text-emerald-300', partial: 'text-amber-300', error: 'text-rose-300', running: 'text-brand-400' }[r.status as string]
+            const rTone = !r ? 'text-ink-400' : { ok: 'text-emerald-700 dark:text-emerald-300', partial: 'text-amber-700 dark:text-amber-300', error: 'text-rose-700 dark:text-rose-300', running: 'text-brand-600 dark:text-brand-400' }[r.status as string]
             return (
               <div key={p.id} className="flex items-start gap-4 py-3">
                 <div className="w-44 shrink-0">

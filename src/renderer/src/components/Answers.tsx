@@ -21,7 +21,7 @@ export function AnswersEditor({ value, onChange }: { value: Prefs['answers']; on
         <div key={i} className="grid grid-cols-[220px_1fr_auto] items-start gap-2">
           <input className="field !py-1.5 text-xs font-medium" value={a.label} onChange={(e) => set(i, { label: e.target.value })} />
           <textarea className="field !py-1.5 text-sm" rows={a.value.length > 80 ? 3 : 1} value={a.value} placeholder="Your answer" onChange={(e) => set(i, { value: e.target.value })} />
-          <button className="mt-1.5 rounded p-1 text-ink-400 hover:bg-white/5 hover:text-rose-300" title="Remove" onClick={() => onChange(value.filter((_, j) => j !== i))}><X size={14} /></button>
+          <button className="mt-1.5 rounded p-1 text-ink-400 hover:bg-hover hover:text-rose-700 dark:hover:text-rose-300" title="Remove" onClick={() => onChange(value.filter((_, j) => j !== i))}><X size={14} /></button>
         </div>
       ))}
       <button className="btn btn-ghost !px-2 !py-1 text-xs" onClick={() => onChange([...value, { label: 'New question', value: '' }])}><Plus size={14} /> Add answer</button>
@@ -38,7 +38,7 @@ export function QuickAnswers({ answers }: { answers: Prefs['answers'] }): ReactN
       <h4 className="label">Quick answers</h4>
       <div className="flex flex-wrap gap-1.5">
         {filled.map((a) => (
-          <span key={a.label} className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.06] bg-ink-850 py-0.5 pl-2 pr-0.5 text-xs text-ink-300" title={a.value}>
+          <span key={a.label} className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-ink-850 py-0.5 pl-2 pr-0.5 text-xs text-ink-300" title={a.value}>
             {a.label}
             <CopyButton text={a.value} label="" />
           </span>

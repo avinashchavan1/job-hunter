@@ -29,13 +29,13 @@ export function GmailConnect({ profile, onChange, oauthReady }: { profile: Profi
   }
 
   if (!oauthReady)
-    return <p className="mt-2 pl-12 text-xs text-amber-300">One-time setup needed first: Settings → Gmail.</p>
+    return <p className="mt-2 pl-12 text-xs text-amber-700 dark:text-amber-300">One-time setup needed first: Settings → Gmail.</p>
 
   return (
     <div className="mt-3 pl-12">
       {connected && profile.gmail_email ? (
         <div className="flex items-center gap-2 text-xs">
-          <span className="inline-flex items-center gap-1.5 text-emerald-300"><CheckCircle2 size={13} /> {profile.gmail_email}</span>
+          <span className="inline-flex items-center gap-1.5 text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={13} /> {profile.gmail_email}</span>
           <button className="text-ink-400 underline hover:text-ink-100" onClick={async () => { await window.api.gmail.disconnect(profile.id); onChange() }}>Disconnect</button>
         </div>
       ) : (
@@ -43,7 +43,7 @@ export function GmailConnect({ profile, onChange, oauthReady }: { profile: Profi
           {busy ? <Spinner size={14} /> : <Mail size={14} />} {busy ? 'Waiting for Google sign-in in your browser…' : 'Connect Gmail'}
         </button>
       )}
-      {err && <p className="mt-2 flex items-start gap-1.5 text-xs text-rose-300"><XCircle size={13} className="mt-px shrink-0" />{err}</p>}
+      {err && <p className="mt-2 flex items-start gap-1.5 text-xs text-rose-700 dark:text-rose-300"><XCircle size={13} className="mt-px shrink-0" />{err}</p>}
     </div>
   )
 }

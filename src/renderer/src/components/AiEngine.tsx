@@ -57,11 +57,11 @@ export function AiEngine({
             }}
             className={cx(
               'rounded-2xl border p-4 text-left transition',
-              s.llm.provider === o.key ? 'border-brand-500/60 bg-brand-500/10 ring-4 ring-brand-500/10' : 'border-white/[0.08] hover:border-white/20'
+              s.llm.provider === o.key ? 'border-brand-500/60 bg-brand-500/10 ring-4 ring-brand-500/10' : 'border-line hover:border-line-strong'
             )}
           >
             <div className="flex items-center gap-2 font-medium">
-              <span className={s.llm.provider === o.key ? 'text-brand-400' : 'text-ink-400'}>{o.icon}</span>
+              <span className={s.llm.provider === o.key ? 'text-brand-600 dark:text-brand-400' : 'text-ink-400'}>{o.icon}</span>
               {o.title}
             </div>
             <p className="mt-1 text-xs text-ink-400">{o.desc}</p>
@@ -85,7 +85,7 @@ export function AiEngine({
       ) : (
         <>
           {detected && (
-            <div className="flex items-center gap-2 rounded-xl bg-emerald-400/10 px-3 py-2 text-xs text-emerald-300">
+            <div className="flex items-center gap-2 rounded-xl bg-emerald-400/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
               <Radar size={14} /> FreeLLMAPI detected on this computer ({detected})
               {s.llm.baseUrl !== detected && (
                 <button className="ml-auto underline" onClick={() => { setUrl(detected); void setLlm({ baseUrl: detected, model: 'auto:smart' }) }}>Use it</button>
@@ -111,7 +111,7 @@ export function AiEngine({
                 ))}
               </select>
               {models.length > 0 && !models.includes(s.llm.model) && !/:3001\b/.test(s.llm.baseUrl) ? (
-                <p className="mt-1.5 text-xs text-rose-300">“{s.llm.model}” isn’t offered by this server — pick a model from the list.</p>
+                <p className="mt-1.5 text-xs text-rose-700 dark:text-rose-300">“{s.llm.model}” isn’t offered by this server — pick a model from the list.</p>
               ) : (
                 <p className="mt-1.5 text-xs text-ink-400">FreeLLMAPI: “auto:smart”. OpenRouter: any model id, e.g. one ending in “:free”.</p>
               )}
@@ -129,7 +129,7 @@ export function AiEngine({
               <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-ink-400">
                 Free picks:
                 {models.filter((m) => m.endsWith(':free') && m !== s.llm.model && !(s.llm.fallbackModels ?? []).includes(m)).slice(0, 6).map((m) => (
-                  <button key={m} className="rounded-lg border border-dashed border-white/15 px-2 py-0.5 hover:border-brand-500/50 hover:text-brand-400"
+                  <button key={m} className="rounded-lg border border-dashed border-line-strong px-2 py-0.5 hover:border-brand-500/50 hover:text-brand-600 dark:hover:text-brand-400"
                     onClick={() => setLlm({ fallbackModels: [...(s.llm.fallbackModels ?? []), m] })}>+ {m}</button>
                 ))}
               </div>
@@ -138,12 +138,12 @@ export function AiEngine({
           <div className="flex items-center gap-3">
             <button className="btn btn-outline" disabled={testing || !s.llm.baseUrl} onClick={runTest}>{testing ? <Spinner /> : null} Test connection</button>
             {test && (
-              <span className={cx('flex items-start gap-1.5 text-xs', test.ok ? 'text-emerald-300' : 'text-rose-300')}>
+              <span className={cx('flex items-start gap-1.5 text-xs', test.ok ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300')}>
                 {test.ok ? <CheckCircle2 size={13} className="mt-px shrink-0" /> : <XCircle size={13} className="mt-px shrink-0" />}{test.message}
               </span>
             )}
           </div>
-          <p className="rounded-xl bg-amber-400/10 px-3 py-2 text-xs text-amber-200/90">
+          <p className="rounded-xl bg-amber-400/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-200">
             Free models score less consistently than Claude, and resumes/job text go to whichever upstream provider the server routes to.
           </p>
         </>

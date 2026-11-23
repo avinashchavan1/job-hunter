@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useState } from 'react'
-import { Activity, Briefcase, KanbanSquare, History, ListChecks, Plus, Settings, UserRound } from 'lucide-react'
+import logo from './assets/logo.png'
+import { Activity, KanbanSquare, History, ListChecks, Plus, Settings, UserRound } from 'lucide-react'
 import { HealthPage } from './pages/HealthPage'
 import { BoardPage } from './pages/BoardPage'
 import type { AppSettings, Profile, SecretKey } from '@shared/types'
@@ -101,10 +102,10 @@ export default function App(): ReactNode {
 
   return (
     <div className="flex h-full">
-      <aside className="relative flex w-60 shrink-0 flex-col border-r border-white/[0.06] bg-ink-900/60 px-3 pb-3 pt-11">
+      <aside className="relative flex w-56 shrink-0 flex-col border-r border-line bg-sidebar px-2.5 pb-3 pt-12">
         <div className="drag absolute inset-x-0 top-0 h-10" />
         <div className="mb-6 flex items-center gap-2.5 px-2">
-          <div className="grid h-8 w-8 place-items-center rounded-xl bg-brand-600 text-white shadow-lg shadow-brand-600/30"><Briefcase size={16} /></div>
+          <img src={logo} alt="" className="h-8 w-8" draggable={false} />
           <div>
             <div className="text-sm font-semibold">Job Hunter</div>
             <div className="text-[11px] text-ink-400">You apply. It finds.</div>
@@ -113,17 +114,17 @@ export default function App(): ReactNode {
 
         <div className="mb-1 flex items-center justify-between px-2">
           <span className="text-[11px] font-medium uppercase tracking-wider text-ink-400">Profiles</span>
-          <button className="rounded-md p-1 text-ink-400 hover:bg-white/5 hover:text-ink-100" title="Add profile" onClick={() => setAdding(true)}><Plus size={14} /></button>
+          <button className="rounded-md p-1 text-ink-400 hover:bg-hover hover:text-ink-100" title="Add profile" onClick={() => setAdding(true)}><Plus size={14} /></button>
         </div>
         <div className="mb-5 space-y-0.5">
           {profiles.map((p) => (
             <button key={p.id} onClick={() => setPid(p.id)}
-              className={cx('flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left text-sm transition', p.id === profile.id ? 'bg-white/[0.07] text-white' : 'text-ink-300 hover:bg-white/[0.04]')}>
+              className={cx('flex w-full items-center gap-2.5 rounded-md px-2 py-1 text-left text-sm transition', p.id === profile.id ? 'bg-selected text-ink-100' : 'text-ink-300 hover:bg-hover')}>
               <span className={cx('grid h-6 w-6 place-items-center rounded-full text-[11px] font-semibold', p.id === profile.id ? 'bg-brand-600 text-white' : 'bg-ink-700 text-ink-300')}>
                 {p.name.slice(0, 1).toUpperCase()}
               </span>
               <span className="truncate">{p.name}</span>
-              {running.has(p.id) && <span className="ml-auto text-brand-400"><Spinner size={12} /></span>}
+              {running.has(p.id) && <span className="ml-auto text-brand-600 dark:text-brand-400"><Spinner size={12} /></span>}
               {!p.active && <span className="ml-auto text-[10px] text-ink-400">paused</span>}
             </button>
           ))}
@@ -132,7 +133,7 @@ export default function App(): ReactNode {
         <nav className="space-y-0.5">
           {nav.map((n) => (
             <button key={n.key} onClick={() => setPage(n.key)}
-              className={cx('flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition', page === n.key ? 'bg-white/[0.07] text-white' : 'text-ink-300 hover:bg-white/[0.04]')}>
+              className={cx('flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition', page === n.key ? 'bg-selected text-ink-100' : 'text-ink-300 hover:bg-hover')}>
               {n.icon} {n.label}
             </button>
           ))}
@@ -140,17 +141,17 @@ export default function App(): ReactNode {
 
         <div className="mt-auto">
           <button onClick={() => setPage('settings')}
-            className={cx('flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition', page === 'settings' ? 'bg-white/[0.07] text-white' : 'text-ink-300 hover:bg-white/[0.04]')}>
+            className={cx('flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition', page === 'settings' ? 'bg-selected text-ink-100' : 'text-ink-300 hover:bg-hover')}>
             <Settings size={16} /> Settings
           </button>
         </div>
       </aside>
 
-      <main className="relative flex-1 overflow-auto">
-        <div className="drag sticky top-0 z-10 h-8 bg-gradient-to-b from-ink-950 to-transparent" />
+      <main className="relative flex-1 overflow-auto bg-ink-950">
+        <div className="drag sticky top-0 z-10 h-8 bg-ink-950/80 backdrop-blur" />
         {runErr && (
           <div className="mx-auto mb-2 max-w-6xl px-8">
-            <div className="rounded-xl bg-rose-400/10 px-3 py-2 text-sm text-rose-300">{runErr}</div>
+            <div className="rounded-xl bg-rose-400/10 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">{runErr}</div>
           </div>
         )}
         {page === 'matches' && <Matches profile={profile} running={isRunning} onRun={run} />}

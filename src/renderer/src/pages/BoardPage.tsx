@@ -51,7 +51,7 @@ export function BoardPage({ profile }: { profile: Profile }): ReactNode {
   return (
     <div className="flex h-full flex-col px-8 py-6">
       <header className="mb-5">
-        <p className="text-xs font-medium uppercase tracking-wider text-brand-400">Tracker</p>
+        <p className="text-xs font-medium uppercase tracking-wider text-brand-600 dark:text-brand-400">Tracker</p>
         <h1 className="mt-1 text-2xl font-semibold tracking-tight">Applications</h1>
         <p className="mt-1 text-sm text-ink-400">
           Drag cards between columns. Shortlist or mark jobs applied from Matches and they appear here.
@@ -65,7 +65,7 @@ export function BoardPage({ profile }: { profile: Profile }): ReactNode {
             onDragOver={(e) => { e.preventDefault(); setOver(c.key) }}
             onDragLeave={() => setOver(null)}
             onDrop={(e) => onDrop(e, c.key)}
-            className={cx('flex min-h-0 flex-col rounded-2xl border border-t-2 border-white/[0.06] bg-ink-900/60 transition', c.tone, over === c.key && 'bg-brand-500/5 ring-2 ring-brand-500/30')}
+            className={cx('flex min-h-0 flex-col rounded-2xl border border-t-2 border-line bg-ink-900/60 transition', c.tone, over === c.key && 'bg-brand-500/5 ring-2 ring-brand-500/30')}
           >
             <div className="flex items-baseline justify-between px-3 pb-2 pt-3">
               <div>
@@ -92,7 +92,7 @@ function Card({ m, onDragStart, onNotes }: { m: Match; onDragStart: (e: DragEven
   const days = m.status_at ? (Date.now() - new Date(m.status_at).getTime()) / 86400000 : 0
   const followUp = m.status === 'applied' && days >= FOLLOW_UP_DAYS
   return (
-    <div draggable onDragStart={onDragStart} className="cursor-grab rounded-xl border border-white/[0.06] bg-ink-850 p-3 shadow-sm transition hover:border-white/15 active:cursor-grabbing">
+    <div draggable onDragStart={onDragStart} className="cursor-grab rounded-xl border border-line bg-ink-850 p-3 shadow-sm transition hover:border-line-strong active:cursor-grabbing">
       <div className="flex items-start gap-2.5">
         <ScoreRing score={m.score} size={34} />
         <div className="min-w-0 flex-1">
@@ -102,7 +102,7 @@ function Card({ m, onDragStart, onNotes }: { m: Match; onDragStart: (e: DragEven
         </div>
       </div>
       {followUp && (
-        <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-amber-400/10 px-2 py-1 text-[11px] text-amber-300">
+        <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-amber-400/10 px-2 py-1 text-[11px] text-amber-700 dark:text-amber-300">
           <BellRing size={12} /> Applied {Math.floor(days)}d ago — follow up?
         </div>
       )}
@@ -122,8 +122,8 @@ function Card({ m, onDragStart, onNotes }: { m: Match; onDragStart: (e: DragEven
       <div className="mt-2 flex items-center justify-between text-[11px] text-ink-400">
         <span>{m.status_at ? timeAgo(m.status_at) : ''}</span>
         <span className="flex gap-1">
-          <button className="rounded p-1 hover:bg-white/5 hover:text-ink-100" title="Notes" onClick={() => setEditing(true)}><StickyNote size={13} /></button>
-          {m.url && <button className="rounded p-1 hover:bg-white/5 hover:text-ink-100" title="Open posting" onClick={() => window.api.open(m.url)}><ExternalLink size={13} /></button>}
+          <button className="rounded p-1 hover:bg-hover hover:text-ink-100" title="Notes" onClick={() => setEditing(true)}><StickyNote size={13} /></button>
+          {m.url && <button className="rounded p-1 hover:bg-hover hover:text-ink-100" title="Open posting" onClick={() => window.api.open(m.url)}><ExternalLink size={13} /></button>}
         </span>
       </div>
     </div>

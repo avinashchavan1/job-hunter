@@ -1,5 +1,6 @@
 import { ReactNode, useState } from 'react'
-import { ArrowLeft, ArrowRight, Briefcase, CheckCircle2, FileText, ShieldCheck, Upload } from 'lucide-react'
+import logo from '../assets/logo.png'
+import { ArrowLeft, ArrowRight, CheckCircle2, FileText, ShieldCheck, Upload } from 'lucide-react'
 import type { AppSettings, Profile, SecretKey } from '@shared/types'
 import { AiEngine, llmReady } from '../components/AiEngine'
 import { Spinner, cx } from '../ui'
@@ -45,13 +46,13 @@ export function Onboarding({
 
   const steps = ['Welcome', 'AI engine', 'Job search', 'Resume']
   return (
-    <div className="relative grid h-full place-items-center overflow-auto bg-[radial-gradient(ellipse_at_top,rgba(88,101,242,0.18),transparent_60%)] px-6 py-10">
+    <div className="relative grid h-full place-items-center overflow-auto bg-ink-950 px-6 py-10">
       <div className="drag absolute inset-x-0 top-0 h-8" />
       <div className="w-full max-w-2xl">
         <div className="mb-6 flex items-center justify-center gap-2">
           {steps.map((s, i) => (
             <button key={s} className="flex items-center gap-2 disabled:cursor-default" disabled={i > 1 && !ready} onClick={() => setStep(i)}>
-              <div className={cx('grid h-6 w-6 place-items-center rounded-full text-[11px] font-semibold', i < step ? 'bg-emerald-400/20 text-emerald-300' : i === step ? 'bg-brand-600 text-white' : 'bg-ink-700 text-ink-400')}>
+              <div className={cx('grid h-6 w-6 place-items-center rounded-full text-[11px] font-semibold', i < step ? 'bg-emerald-400/20 text-emerald-700 dark:text-emerald-300' : i === step ? 'bg-brand-600 text-white' : 'bg-ink-700 text-ink-400')}>
                 {i < step ? <CheckCircle2 size={14} /> : i + 1}
               </div>
               <span className={cx('text-xs', i === step ? 'text-ink-100' : 'text-ink-400')}>{s}</span>
@@ -60,10 +61,10 @@ export function Onboarding({
           ))}
         </div>
 
-        <div className="card p-7 shadow-2xl shadow-black/40">
+        <div className="card p-7 shadow-xl">
           {step === 0 && (
             <div>
-              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/30"><Briefcase size={22} /></div>
+              <img src={logo} alt="" className="h-16 w-16" draggable={false} />
               <h1 className="mt-5 text-2xl font-semibold tracking-tight">Job Hunter</h1>
               <p className="mt-2 text-sm leading-relaxed text-ink-300">
                 Every morning it finds fresh jobs that fit a resume, scores each one, and writes a short tailored note. You review the ranked list and click Apply yourself.
@@ -75,7 +76,7 @@ export function Onboarding({
                   'Everything is stored on this computer; keys go in your system keychain',
                   'Works for several people — one profile each'
                 ].map((t) => (
-                  <li key={t} className="flex gap-2"><ShieldCheck size={16} className="mt-0.5 shrink-0 text-emerald-300" />{t}</li>
+                  <li key={t} className="flex gap-2"><ShieldCheck size={16} className="mt-0.5 shrink-0 text-emerald-700 dark:text-emerald-300" />{t}</li>
                 ))}
               </ul>
               <button className="btn btn-primary mt-7 w-full !py-2.5" onClick={() => setStep(1)}>Get started <ArrowRight size={16} /></button>
@@ -118,10 +119,10 @@ export function Onboarding({
               <p className="mb-5 mt-1 text-sm text-ink-400">Create a profile and add their resume. You can add more people later.</p>
               <label className="label">Profile name</label>
               <input className="field" placeholder="e.g. Sweta" value={name} onChange={(e) => setName(e.target.value)} />
-              <button className="mt-5 flex w-full flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-white/10 px-6 py-8 text-sm text-ink-300 transition hover:border-brand-500/50 hover:bg-brand-500/5 disabled:opacity-60"
+              <button className="mt-5 flex w-full flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-line-strong px-6 py-8 text-sm text-ink-300 transition hover:border-brand-500/50 hover:bg-brand-500/5 disabled:opacity-60"
                 disabled={busy} onClick={createWithResume}>
-                {busy ? <Spinner size={22} /> : <Upload size={22} className="text-brand-400" />}
-                <span className="font-medium text-ink-100">{busy ? 'Claude is reading the resume…' : 'Choose resume (PDF or DOCX)'}</span>
+                {busy ? <Spinner size={22} /> : <Upload size={22} className="text-brand-600 dark:text-brand-400" />}
+                <span className="font-medium text-ink-100">{busy ? 'Reading the resume…' : 'Choose resume (PDF or DOCX)'}</span>
                 <span className="text-xs text-ink-400">{busy ? 'about 20–40 seconds' : 'Skills, titles and experience are extracted automatically'}</span>
               </button>
               {onCancel ? (
@@ -129,8 +130,8 @@ export function Onboarding({
               ) : (
                 <button className="btn btn-ghost mt-3" disabled={busy} onClick={() => setStep(2)}><ArrowLeft size={16} /> Back</button>
               )}
-              {err && <p className="mt-3 rounded-xl bg-rose-400/10 px-3 py-2 text-xs text-rose-300">{err}</p>}
-              <p className="mt-4 flex items-center gap-1.5 text-xs text-ink-400"><FileText size={12} /> The resume is sent to Claude only to build the profile; it’s stored locally.</p>
+              {err && <p className="mt-3 rounded-xl bg-rose-400/10 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">{err}</p>}
+              <p className="mt-4 flex items-center gap-1.5 text-xs text-ink-400"><FileText size={12} /> The resume is sent to your AI engine only to build the profile; it’s stored locally.</p>
             </div>
           )}
         </div>

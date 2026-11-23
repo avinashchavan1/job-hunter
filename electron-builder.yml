@@ -1,5 +1,6 @@
-appId: com.electron.app
-productName: job-hunter
+appId: app.jobhunter.desktop
+productName: Job Hunter
+copyright: Copyright © 2026 Avinash Chavan
 directories:
   buildResources: build
 files:
@@ -11,33 +12,32 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+mac:
+  category: public.app-category.productivity
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  icon: build/icon.icns
+  identity: "-"
+  hardenedRuntime: false
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    LSUIElement: false
+    NSUserNotificationAlertStyle: alert
+  notarize: false
+dmg:
+  artifactName: Job-Hunter-${version}-${arch}.${ext}
+  title: Job Hunter
 win:
   executableName: job-hunter
 nsis:
-  artifactName: ${name}-${version}-setup.${ext}
-  shortcutName: ${productName}
-  uninstallDisplayName: ${productName}
+  artifactName: Job-Hunter-${version}-setup.${ext}
+  shortcutName: Job Hunter
+  uninstallDisplayName: Job Hunter
   createDesktopShortcut: always
-mac:
-  entitlementsInherit: build/entitlements.mac.plist
-  extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
-    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
-    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
-  notarize: false
-dmg:
-  artifactName: ${name}-${version}.${ext}
 linux:
-  target:
-    - AppImage
-    - snap
-    - deb
-  maintainer: electronjs.org
+  target: [AppImage]
   category: Utility
 appImage:
-  artifactName: ${name}-${version}.${ext}
+  artifactName: Job-Hunter-${version}.${ext}
 npmRebuild: false
-publish:
-  provider: generic
-  url: https://example.com/auto-updates

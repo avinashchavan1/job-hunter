@@ -1,39 +1,93 @@
 @import "tailwindcss";
 
-@theme {
-  --font-sans: "Inter", ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
-  --color-ink-950: #0b0d12;
-  --color-ink-900: #10131a;
-  --color-ink-850: #151923;
-  --color-ink-800: #1a1f2b;
-  --color-ink-700: #252b3a;
-  --color-ink-600: #343b4d;
-  --color-ink-400: #7b8397;
-  --color-ink-300: #a3aabb;
-  --color-ink-100: #e7e9ef;
-  --color-brand-400: #8b9dff;
-  --color-brand-500: #6d80ff;
-  --color-brand-600: #5865f2;
+/*
+  Native macOS look: follows the system Light/Dark appearance, SF system font,
+  13px-ish body text, translucent sidebar (window vibrancy), hairline separators.
+  Colour tokens are CSS variables so one set of classes works in both modes.
+*/
+
+:root {
+  color-scheme: light dark;
+  --bg: #f5f5f7;            /* window content */
+  --surface: #ffffff;       /* cards */
+  --field: #ffffff;         /* inputs */
+  --raised: #f2f2f5;        /* subtle panels inside cards */
+  --chip: #ededf0;
+  --line: rgba(0, 0, 0, 0.09);
+  --line-strong: rgba(0, 0, 0, 0.16);
+  --hover: rgba(0, 0, 0, 0.045);
+  --selected: rgba(0, 0, 0, 0.07);
+  --text: #1d1d1f;
+  --text-2: #48484a;
+  --text-3: #6e6e73;
+  --track: #e5e5ea;
+  --sidebar: rgba(246, 246, 248, 0.6);
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1e;
+    --surface: #252528;
+    --field: #1f1f22;
+    --raised: #2c2c2f;
+    --chip: #333336;
+    --line: rgba(255, 255, 255, 0.08);
+    --line-strong: rgba(255, 255, 255, 0.15);
+    --hover: rgba(255, 255, 255, 0.05);
+    --selected: rgba(255, 255, 255, 0.09);
+    --text: #f5f5f7;
+    --text-2: #c7c7cc;
+    --text-3: #98989d;
+    --track: #3a3a3c;
+    --sidebar: rgba(30, 30, 32, 0.55);
+  }
+}
+
+@theme inline {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* legacy ink scale mapped onto semantic tokens */
+  --color-ink-950: var(--bg);
+  --color-ink-900: var(--surface);
+  --color-ink-850: var(--raised);
+  --color-ink-800: var(--raised);
+  --color-ink-700: var(--chip);
+  --color-ink-600: var(--track);
+  --color-ink-400: var(--text-3);
+  --color-ink-300: var(--text-2);
+  --color-ink-100: var(--text);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-hover: var(--hover);
+  --color-selected: var(--selected);
+  --color-field: var(--field);
+  --color-sidebar: var(--sidebar);
+
+  --color-brand-400: #7b8bff;
+  --color-brand-500: #5e6cf6;
+  --color-brand-600: #4f56e8;
+}
+
+html { font-size: 15px; }  /* text-sm ≈ 13px, the macOS body size */
 html, body, #root { height: 100%; }
 body {
-  @apply bg-ink-950 text-ink-100 antialiased;
-  font-feature-settings: "cv11", "ss01";
+  background: transparent; /* lets the window vibrancy show through the sidebar */
+  color: var(--text);
   -webkit-font-smoothing: antialiased;
   user-select: none;
+  cursor: default;
 }
 input, textarea, select, .selectable { user-select: text; }
+button { cursor: default; }
 .drag { -webkit-app-region: drag; }
 .no-drag { -webkit-app-region: no-drag; }
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-thumb { background: #2a3142; border-radius: 10px; border: 3px solid transparent; background-clip: content-box; }
-::-webkit-scrollbar-track { background: transparent; }
 
-@utility card { @apply rounded-2xl border border-white/[0.06] bg-ink-900/80; }
-@utility btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition active:scale-[.98] disabled:opacity-50 disabled:pointer-events-none; }
-@utility btn-primary { @apply bg-brand-600 text-white hover:bg-brand-500 shadow-lg shadow-brand-600/20; }
-@utility btn-ghost { @apply text-ink-300 hover:bg-white/5 hover:text-ink-100; }
-@utility btn-outline { @apply border border-white/10 text-ink-100 hover:bg-white/5; }
-@utility field { @apply w-full rounded-xl border border-white/10 bg-ink-850 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-400 outline-none focus:border-brand-500/60 focus:ring-4 focus:ring-brand-500/10; }
-@utility label { @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-ink-400; }
+@utility card { @apply rounded-xl border border-line bg-ink-900 shadow-[0_1px_2px_rgba(0,0,0,0.04)]; }
+@utility btn { @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-45 disabled:pointer-events-none; }
+@utility btn-primary { @apply bg-brand-600 text-white hover:bg-brand-500 shadow-sm; }
+@utility btn-ghost { @apply text-ink-300 hover:bg-hover hover:text-ink-100; }
+@utility btn-outline { @apply border border-line-strong bg-field text-ink-100 shadow-sm hover:bg-hover; }
+@utility field { @apply w-full rounded-lg border border-line-strong bg-field px-2.5 py-1.5 text-sm text-ink-100 placeholder:text-ink-400 outline-none focus:border-brand-500 focus:ring-3 focus:ring-brand-500/25; }
+@utility label { @apply mb-1 block text-xs font-medium text-ink-400; }

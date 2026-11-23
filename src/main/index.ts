@@ -2,10 +2,15 @@ import { app, BrowserWindow, Menu, nativeImage, Notification, shell, Tray } from
 import { join } from 'path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+import trayIcon from '../../resources/trayTemplate.png?asset'
 import { broadcast, registerIpc, runAllActive } from './ipc'
 import { startScheduler } from './scheduler'
 import { getSettings, saveSettings } from './settings'
 import { ipcMain } from 'electron'
+
+// One stable data folder regardless of display name (keeps profiles, matches and keys across renames)
+app.setName('job-hunter') // keychain entry (safeStorage) is keyed on this name — keep it stable
+app.setPath('userData', join(app.getPath('appData'), 'job-hunter'))
 
 // dev-only: lets automated UI tests attach over CDP
 if (!app.isPackaged && process.env.JH_DEBUG_PORT) app.commandLine.appendSwitch('remote-debugging-port', process.env.JH_DEBUG_PORT)
@@ -23,7 +28,9 @@ function createWindow(): void {
     show: false,
     title: 'Job Hunter',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
-    backgroundColor: '#0b0d12',
+    trafficLightPosition: { x: 16, y: 18 },
+    // native translucent sidebar on macOS; renderer paints the content area opaque
+    ...(process.platform === 'darwin' ? { vibrancy: 'sidebar' as const, visualEffectState: 'followWindow' as const, backgroundColor: '#00000000' } : { backgroundColor: '#1c1c1e' }),
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: false }
@@ -68,8 +75,8 @@ async function runAllAndNotify(): Promise<void> {
 }
 
 function createTray(): void {
-  const img = nativeImage.createFromPath(icon).resize({ width: 18, height: 18 })
-  img.setTemplateImage(false)
+  const img = process.platform === 'darwin' ? nativeImage.createFromPath(trayIcon) : nativeImage.createFromPath(icon).resize({ width: 18, height: 18 })
+  if (process.platform === 'darwin') img.setTemplateImage(true)
   tray = new Tray(img)
   tray.setToolTip('Job Hunter')
   tray.setContextMenu(
@@ -93,7 +100,7 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   app.on('second-instance', showWindow)
   app.whenReady().then(() => {
-    electronApp.setAppUserModelId('app.jobhunter')
+    electronApp.setAppUserModelId('app.jobhunter.desktop')
     app.on('browser-window-created', (_, w) => optimizer.watchWindowShortcuts(w))
     // Standard menu so Cmd+C / Cmd+V / Cmd+A work in text fields on macOS
     Menu.setApplicationMenu(

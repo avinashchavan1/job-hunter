@@ -5,10 +5,10 @@ export const cx = (...c: (string | false | null | undefined)[]): string => c.fil
 
 export function scoreTone(s: number | null): { ring: string; text: string; bg: string } {
   if (s == null) return { ring: '#343b4d', text: 'text-ink-400', bg: 'bg-ink-700/40' }
-  if (s >= 80) return { ring: '#34d399', text: 'text-emerald-300', bg: 'bg-emerald-400/10' }
-  if (s >= 65) return { ring: '#8b9dff', text: 'text-brand-400', bg: 'bg-brand-500/10' }
-  if (s >= 50) return { ring: '#fbbf24', text: 'text-amber-300', bg: 'bg-amber-400/10' }
-  return { ring: '#f87171', text: 'text-rose-300', bg: 'bg-rose-400/10' }
+  if (s >= 80) return { ring: '#34d399', text: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-400/10' }
+  if (s >= 65) return { ring: '#8b9dff', text: 'text-brand-600 dark:text-brand-400', bg: 'bg-brand-500/10' }
+  if (s >= 50) return { ring: '#fbbf24', text: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-400/10' }
+  return { ring: '#f87171', text: 'text-rose-700 dark:text-rose-300', bg: 'bg-rose-400/10' }
 }
 
 export function ScoreRing({ score, size = 52 }: { score: number | null; size?: number }): ReactNode {
@@ -39,17 +39,17 @@ export function ScoreRing({ score, size = 52 }: { score: number | null; size?: n
 
 export function Chip({ children, tone = 'default', onRemove }: { children: ReactNode; tone?: 'default' | 'brand' | 'warn' | 'good' | 'bad'; onRemove?: () => void }): ReactNode {
   const tones = {
-    default: 'bg-white/[0.05] text-ink-300 border-white/[0.06]',
-    brand: 'bg-brand-500/10 text-brand-400 border-brand-500/20',
-    warn: 'bg-amber-400/10 text-amber-300 border-amber-400/20',
-    good: 'bg-emerald-400/10 text-emerald-300 border-emerald-400/20',
-    bad: 'bg-rose-400/10 text-rose-300 border-rose-400/20'
+    default: 'bg-ink-700 text-ink-300 border-line',
+    brand: 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border-brand-500/20',
+    warn: 'bg-amber-400/10 text-amber-700 dark:text-amber-300 border-amber-400/20',
+    good: 'bg-emerald-400/10 text-emerald-700 dark:text-emerald-300 border-emerald-400/20',
+    bad: 'bg-rose-400/10 text-rose-700 dark:text-rose-300 border-rose-400/20'
   }
   return (
     <span className={cx('inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs', tones[tone])}>
       {children}
       {onRemove && (
-        <button onClick={onRemove} className="-mr-0.5 rounded hover:text-white">
+        <button onClick={onRemove} className="-mr-0.5 rounded hover:text-ink-100">
           <X size={12} />
         </button>
       )}
@@ -124,7 +124,7 @@ export function CopyButton({ text, label = 'Copy' }: { text: string; label?: str
         setTimeout(() => setDone(false), 1500)
       }}
     >
-      {done ? <Check size={14} className="text-emerald-300" /> : <Copy size={14} />}
+      {done ? <Check size={14} className="text-emerald-700 dark:text-emerald-300" /> : <Copy size={14} />}
       {label ? (done ? 'Copied' : label) : null}
     </button>
   )

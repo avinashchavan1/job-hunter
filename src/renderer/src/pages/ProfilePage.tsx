@@ -60,7 +60,7 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
     <div className="mx-auto max-w-5xl space-y-5 px-8 py-6">
       <header className="flex items-end justify-between">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-brand-400">Profile</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-brand-600 dark:text-brand-400">Profile</p>
           <input className="mt-1 bg-transparent text-2xl font-semibold tracking-tight outline-none" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <button className="btn btn-primary" disabled={!dirty || busy === 'save'} onClick={save}>
@@ -70,7 +70,7 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
 
       <Section
         title="Resume"
-        desc="Claude reads it once and builds the profile used for scoring. Re-upload any time."
+        desc="The AI reads it once and builds the profile used for scoring. Re-upload any time."
         right={
           <button className="btn btn-outline" onClick={upload} disabled={busy === 'resume'}>
             {busy === 'resume' ? <Spinner /> : resume ? <RefreshCw size={15} /> : <Upload size={15} />}
@@ -78,7 +78,7 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
           </button>
         }
       >
-        {err && <p className="mb-3 rounded-xl bg-rose-400/10 px-3 py-2 text-xs text-rose-300">{err}</p>}
+        {err && <p className="mb-3 rounded-xl bg-rose-400/10 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">{err}</p>}
         {pr ? (
           <div className="grid grid-cols-3 gap-5 text-sm">
             <div className="space-y-3">
@@ -105,7 +105,7 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
         )}
       </Section>
 
-      <Section title="What to look for" desc="Used to build searches and as hard filters before anything is sent to Claude.">
+      <Section title="What to look for" desc="Used to build searches and as hard filters before anything is sent to the AI.">
         <div className="grid grid-cols-2 gap-5">
           <div className="col-span-2">
             <label className="label">Target job titles</label>
@@ -114,7 +114,7 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
               <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-ink-400">
                 Suggestions:
                 {pr.suggested_search_titles.filter((t) => !prefs.target_titles.includes(t)).map((t) => (
-                  <button key={t} className="rounded-lg border border-dashed border-white/15 px-2 py-0.5 hover:border-brand-500/50 hover:text-brand-400" onClick={() => set('target_titles', [...prefs.target_titles, t])}>
+                  <button key={t} className="rounded-lg border border-dashed border-line-strong px-2 py-0.5 hover:border-brand-500/50 hover:text-brand-600 dark:hover:text-brand-400" onClick={() => set('target_titles', [...prefs.target_titles, t])}>
                     + {t}
                   </button>
                 ))}
@@ -172,7 +172,7 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
       <Section title="Sources" desc="Where to look. The app never applies, never creates accounts, never asks for passwords.">
         <div className="grid grid-cols-2 gap-4">
           {SOURCES.map((s) => (
-            <div key={s.key} className="rounded-xl border border-white/[0.06] bg-ink-850/60 p-3.5">
+            <div key={s.key} className="rounded-xl border border-line bg-ink-850/60 p-3.5">
               <Toggle checked={prefs.sources[s.key]} onChange={(v) => set('sources', { ...prefs.sources, [s.key]: v })} label={s.label} hint={s.hint} />
               {(s.key === 'naukri' || s.key === 'linkedin') && (
                 <SiteLogin profile={profile} site={s.key} onChange={async () => { const p = await window.api.profiles.get(profile.id); if (p) onChange(p) }} />
@@ -195,7 +195,7 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
       <div className="flex items-center justify-between pb-4">
         <Toggle checked={profile.active} onChange={async (v) => onChange(await window.api.profiles.update(profile.id, { active: v }))} label="Include in the daily run" />
         <button
-          className="btn btn-ghost text-rose-300 hover:!bg-rose-400/10 hover:!text-rose-200"
+          className="btn btn-ghost text-rose-700 dark:text-rose-300 hover:!bg-rose-400/10 hover:!text-rose-700"
           onClick={async () => {
             if (confirm(`Delete profile “${profile.name}” and all its matches? This cannot be undone.`)) {
               await window.api.profiles.remove(profile.id)

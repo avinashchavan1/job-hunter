@@ -89,7 +89,7 @@ export function Matches({ profile, running, onRun }: { profile: Profile; running
     <div className="mx-auto max-w-6xl space-y-5 px-8 py-6">
       <header className="flex items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-brand-400">Today’s matches</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-brand-600 dark:text-brand-400">Today’s matches</p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{profile.name}</h1>
           <p className="mt-1 text-sm text-ink-400">{profile.profile?.headline}</p>
         </div>
@@ -106,9 +106,9 @@ export function Matches({ profile, running, onRun }: { profile: Profile; running
       </header>
 
       <div className="grid grid-cols-4 gap-3">
-        <Stat label="New today" value={stats?.new_today ?? '–'} icon={<Sparkles size={14} className="text-brand-400" />} />
-        <Stat label="Strong matches" value={counts.strong} sub={`score ≥ ${min}`} icon={<Star size={14} className="text-emerald-300" />} />
-        <Stat label="Applied" value={stats?.by_status.applied ?? 0} icon={<CheckCircle2 size={14} className="text-emerald-300" />} />
+        <Stat label="New today" value={stats?.new_today ?? '–'} icon={<Sparkles size={14} className="text-brand-600 dark:text-brand-400" />} />
+        <Stat label="Strong matches" value={counts.strong} sub={`score ≥ ${min}`} icon={<Star size={14} className="text-emerald-700 dark:text-emerald-300" />} />
+        <Stat label="Applied" value={stats?.by_status.applied ?? 0} icon={<CheckCircle2 size={14} className="text-emerald-700 dark:text-emerald-300" />} />
         <Stat label="Avg score" value={stats?.avg_score || '–'} sub={`${stats?.scored ?? 0} scored · ${stats?.filtered ?? 0} filtered`} icon={<Briefcase size={14} className="text-ink-400" />} />
       </div>
 
@@ -120,7 +120,7 @@ export function Matches({ profile, running, onRun }: { profile: Profile; running
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={cx('rounded-lg px-3 py-1.5 text-xs font-medium transition', tab === t.key ? 'bg-ink-700 text-white shadow' : 'text-ink-400 hover:text-ink-100')}
+              className={cx('rounded-lg px-3 py-1.5 text-xs font-medium transition', tab === t.key ? 'bg-ink-900 text-ink-100 shadow-sm' : 'text-ink-400 hover:text-ink-100')}
             >
               {t.label} <span className="ml-1 tabular-nums text-ink-400">{counts[t.key]}</span>
             </button>
@@ -154,7 +154,7 @@ export function Matches({ profile, running, onRun }: { profile: Profile; running
 function Empty({ tab, hasAny, onRun, running }: { tab: Tab; hasAny: boolean; onRun: () => void; running: boolean }): ReactNode {
   return (
     <div className="card grid place-items-center px-6 py-16 text-center">
-      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-500/10 text-brand-400"><Briefcase size={22} /></div>
+      <div className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-500/10 text-brand-600 dark:text-brand-400"><Briefcase size={22} /></div>
       <h3 className="mt-4 font-semibold">{hasAny ? 'Nothing in this view' : 'No jobs yet'}</h3>
       <p className="mt-1 max-w-sm text-sm text-ink-400">
         {hasAny
@@ -176,7 +176,7 @@ function MatchCard({ m, answers, open, onToggle, onStatus, onRescore }: { m: Mat
   const srcs = (m.sources || m.source || '').split(',').filter(Boolean)
   const done = m.status === 'applied'
   return (
-    <article className={cx('card overflow-hidden transition', open ? 'border-brand-500/25 bg-ink-900' : 'hover:border-white/10', done && 'opacity-70')}>
+    <article className={cx('card overflow-hidden transition', open ? 'border-brand-500/25 bg-ink-900' : 'hover:border-line-strong', done && 'opacity-70')}>
       <div className="flex cursor-pointer items-center gap-4 px-4 py-3.5" onClick={onToggle}>
         <ScoreRing score={m.score} />
         <div className="min-w-0 flex-1">
@@ -214,10 +214,10 @@ function MatchCard({ m, answers, open, onToggle, onStatus, onRescore }: { m: Mat
       </div>
 
       {open && (
-        <div className="grid grid-cols-5 gap-5 border-t border-white/[0.06] px-4 py-4">
+        <div className="grid grid-cols-5 gap-5 border-t border-line px-4 py-4">
           <div className="col-span-2 space-y-4">
             {m.filter_reason && (
-              <div className="rounded-xl bg-rose-400/10 px-3 py-2 text-xs text-rose-300">Filtered out: {m.filter_reason}</div>
+              <div className="rounded-xl bg-rose-400/10 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">Filtered out: {m.filter_reason}</div>
             )}
             {m.matched.length + m.missing.length > 0 && (
               <div>
@@ -233,7 +233,7 @@ function MatchCard({ m, answers, open, onToggle, onStatus, onRescore }: { m: Mat
                 <h4 className="label">Why it fits</h4>
                 <ul className="space-y-1.5 text-sm text-ink-300">
                   {m.reasons.map((r, i) => (
-                    <li key={i} className="flex gap-2"><CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-300" />{r}</li>
+                    <li key={i} className="flex gap-2"><CheckCircle2 size={15} className="mt-0.5 shrink-0 text-emerald-700 dark:text-emerald-300" />{r}</li>
                   ))}
                 </ul>
               </div>
@@ -243,7 +243,7 @@ function MatchCard({ m, answers, open, onToggle, onStatus, onRescore }: { m: Mat
                 <h4 className="label">Watch out</h4>
                 <ul className="space-y-1.5 text-sm text-ink-300">
                   {m.red_flags.map((r, i) => (
-                    <li key={i} className="flex gap-2"><AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-300" />{r}</li>
+                    <li key={i} className="flex gap-2"><AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-700 dark:text-amber-300" />{r}</li>
                   ))}
                 </ul>
               </div>
@@ -268,7 +268,7 @@ function MatchCard({ m, answers, open, onToggle, onStatus, onRescore }: { m: Mat
                 {rescoring ? <Spinner size={14} /> : <RefreshCw size={14} />} {m.score == null ? 'Score now' : 'Re-score'}
               </button>
             </div>
-            {rerr && <p className="text-xs text-rose-300">{rerr}</p>}
+            {rerr && <p className="text-xs text-rose-700 dark:text-rose-300">{rerr}</p>}
           </div>
           <div className="col-span-3 space-y-4">
             {m.cover_note && (

@@ -42,7 +42,7 @@ export function KeyField({
       <div className="mb-1.5 flex items-center justify-between">
         <label className="label !mb-0">{label}</label>
         {isSet ? (
-          <span className="inline-flex items-center gap-1 text-xs text-emerald-300"><CheckCircle2 size={12} /> Saved in Keychain</span>
+          <span className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={12} /> Saved in Keychain</span>
         ) : (
           <span className="text-xs text-ink-400">Not set</span>
         )}
@@ -67,7 +67,7 @@ export function KeyField({
       </div>
       {help && <p className="mt-1.5 text-xs text-ink-400">{help}</p>}
       {res && (
-        <p className={cx('mt-2 flex items-start gap-1.5 text-xs', res.ok ? 'text-emerald-300' : 'text-rose-300')}>
+        <p className={cx('mt-2 flex items-start gap-1.5 text-xs', res.ok ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300')}>
           {res.ok ? <CheckCircle2 size={13} className="mt-px shrink-0" /> : <XCircle size={13} className="mt-px shrink-0" />}
           {res.message}
         </p>
@@ -78,7 +78,7 @@ export function KeyField({
 
 export function ExtLink({ href, children }: { href: string; children: ReactNode }): ReactNode {
   return (
-    <a className="cursor-pointer text-brand-400 hover:underline" onClick={() => window.api.open(href)}>
+    <a className="cursor-pointer text-brand-600 dark:text-brand-400 hover:underline" onClick={() => window.api.open(href)}>
       {children}
     </a>
   )

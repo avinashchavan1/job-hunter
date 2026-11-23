@@ -1,10 +1,9 @@
 {
   "name": "job-hunter",
-  "version": "1.0.0",
-  "description": "An Electron application with React and TypeScript",
+  "version": "0.1.0",
+  "description": "Finds and scores new jobs every morning; you click Apply.",
   "main": "./out/main/index.js",
-  "author": "example.com",
-  "homepage": "https://electron-vite.org",
+  "author": "Avinash Chavan",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
@@ -53,5 +52,6 @@
     "tailwindcss": "^4.3.5",
     "typescript": "^5.9.3",
     "vite": "^8.3.4"
-  }
+  },
+  "productName": "Job Hunter"
 }
