@@ -45,6 +45,7 @@ async function parseAnthropic<T extends z.ZodType>(system: Block[], content: str
   })
   if (resp.stop_reason === 'refusal') throw new Error(`model declined (${resp.stop_details?.category ?? 'unknown'})`)
   if (resp.parsed_output == null) throw new Error(`no structured output (stop_reason=${resp.stop_reason})`)
+  noteLlm(true, model())
   return resp.parsed_output as z.infer<T>
 }
 
@@ -55,12 +56,12 @@ function compatBase(): string {
   return b.endsWith('/v1') ? b : `${b}/v1`
 }
 
-async function chat(messages: { role: string; content: string }[], o: Opts, responseFormat?: unknown): Promise<{ text: string; via: string }> {
+async function chat(messages: { role: string; content: string }[], o: Opts, responseFormat?: unknown, useModel = model()): Promise<{ text: string; via: string }> {
   const key = secret('LLM_API_KEY')
   const r = await fetch(`${compatBase()}/chat/completions`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...(key ? { authorization: `Bearer ${key}` } : {}) },
-    body: JSON.stringify({ model: model(), messages, max_tokens: o.maxTokens ?? 4000, temperature: 0.2, ...(responseFormat ? { response_format: responseFormat } : {}) }),
+    body: JSON.stringify({ model: useModel, messages, max_tokens: o.maxTokens ?? 4000, temperature: 0.2, ...(responseFormat ? { response_format: responseFormat } : {}) }),
     signal: AbortSignal.timeout(180_000)
   })
   const body = await r.text()
@@ -73,7 +74,12 @@ async function chat(messages: { role: string; content: string }[], o: Opts, resp
   }
   const j = JSON.parse(body)
   const text = j.choices?.[0]?.message?.content ?? ''
-  return { text: typeof text === 'string' ? text : JSON.stringify(text), via: r.headers.get('x-routed-via') || j.model || '' }
+  if (!text) {
+    const err = new Error(`empty reply from ${useModel}`) as Error & { status?: number }
+    err.status = 502
+    throw err
+  }
+  return { text: typeof text === 'string' ? text : JSON.stringify(text), via: r.headers.get('x-routed-via') || j.model || useModel }
 }
 
 function extractJson(text: string): unknown {
@@ -98,46 +104,66 @@ async function parseCompat<T extends z.ZodType>(system: Block[], content: string
     { role: 'system', content: sys },
     { role: 'user', content }
   ]
-  let lastErr = '' // shown to the model when its JSON was invalid
-  let failure = '' // last transport/server error, for the log
-  // Routers like FreeLLMAPI skip most models when response_format is set, so ask for JSON in the prompt and validate.
-  let mode = 'none' as 'json_schema' | 'json_object' | 'none'
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const msgs = lastErr
-      ? [...messages, { role: 'user', content: `Your previous reply was not valid: ${lastErr.slice(0, 400)}. Reply again with only the corrected JSON object.` }]
-      : messages
-    const fmt =
-      mode === 'json_schema' ? { type: 'json_schema', json_schema: { name: 'output', schema: jsonSchema, strict: false } } : mode === 'json_object' ? { type: 'json_object' } : undefined
-    let out: { text: string; via: string }
-    try {
-      out = await chat(msgs, o, fmt)
-    } catch (e: any) {
-      if (e instanceof LLMNotConfigured) throw e
-      failure = e?.message ?? String(e)
-      const st = e?.status ?? 0
-      if (st === 400 || st === 422 || st >= 500) {
-        // many free/local models choke on response_format: step down json_schema -> json_object -> plain prompt
-        if (mode !== 'none') mode = mode === 'json_schema' ? 'json_object' : 'none'
-        if (st >= 500) await new Promise((r) => setTimeout(r, 3000))
-        continue
+  let failure = ''
+  const chain = modelChain()
+  for (const m of chain) {
+    if ((cooldown.get(m) ?? 0) > Date.now() && m !== chain[chain.length - 1]) continue
+    let lastErr = '' // shown to the model when its JSON was invalid
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const msgs = lastErr
+        ? [...messages, { role: 'user', content: `Your previous reply was not valid: ${lastErr.slice(0, 400)}. Reply again with only the corrected JSON object.` }]
+        : messages
+      let out: { text: string; via: string }
+      try {
+        // no response_format: routers skip most models when it is set; ask in the prompt and validate instead
+        out = await chat(msgs, o, undefined, m)
+      } catch (e: any) {
+        if (e instanceof LLMNotConfigured) throw e
+        failure = `${m}: ${e?.message ?? e}`
+        const st = e?.status ?? 0
+        if (st === 429 || st === 404) {
+          // rate-limited / unknown model: rest it for 10 min and go to the next model straight away
+          cooldown.set(m, Date.now() + 10 * 60_000)
+          break
+        }
+        if (st >= 500 || st === 400 || st === 422) {
+          await new Promise((r) => setTimeout(r, 2000))
+          continue
+        }
+        throw e
       }
-      if (st === 429) {
-        await new Promise((r) => setTimeout(r, Math.min(60, e?.retryAfter ?? 10 * (attempt + 1)) * 1000))
-        continue
+      lastVia = out.via
+      try {
+        const parsed = schema.safeParse(extractJson(out.text))
+        if (parsed.success) {
+          noteLlm(true, out.via || m)
+          return parsed.data
+        }
+        lastErr = parsed.error.message
+      } catch (e: any) {
+        lastErr = `not JSON (${e?.message ?? e})`
       }
-      throw e
+      failure = `${m}: invalid JSON (${lastErr})`
     }
-    lastVia = out.via
-    try {
-      const parsed = schema.safeParse(extractJson(out.text))
-      if (parsed.success) return parsed.data
-      lastErr = parsed.error.message
-    } catch (e: any) {
-      lastErr = `not JSON (${e?.message ?? e})`
-    }
-    failure = `invalid JSON from ${out.via || 'model'}: ${lastErr}`
   }
-  throw new Error(`AI server failed after 5 tries — ${failure.slice(0, 300)}`)
+  noteLlm(false, failure)
+  throw new Error(`all models failed (${chain.join(' → ')}) — last: ${failure.slice(0, 280)}`)
+}
+
+/** Last success / failure for the health panel. */
+export const llmHealth: { okAt?: string; okVia?: string; failAt?: string; failMsg?: string } = {}
+function noteLlm(ok: boolean, info: string): void {
+  const t = new Date().toISOString()
+  if (ok) Object.assign(llmHealth, { okAt: t, okVia: info })
+  else Object.assign(llmHealth, { failAt: t, failMsg: info.slice(0, 300) })
+}
+export const cooledModels = (): string[] => [...cooldown.entries()].filter(([, t]) => t > Date.now()).map(([m]) => m)
+
+/** Primary model then fallbacks (same server). */
+const cooldown = new Map<string, number>()
+export function modelChain(): string[] {
+  const s = getSettings().llm
+  return [...new Set([s.model, ...(s.fallbackModels ?? [])].filter(Boolean))]
 }
 
 // ---------------- public ----------------

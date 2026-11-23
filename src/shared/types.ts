@@ -1,8 +1,8 @@
 // Types shared by main, preload and renderer.
 
 export type SourceKey = 'job_api' | 'gmail' | 'linkedin' | 'naukri'
-export type Status = 'new' | 'shortlisted' | 'applied' | 'rejected' | 'skipped'
-export const STATUSES: Status[] = ['new', 'shortlisted', 'applied', 'rejected', 'skipped']
+export type Status = 'new' | 'shortlisted' | 'applied' | 'interview' | 'offer' | 'rejected' | 'skipped'
+export const STATUSES: Status[] = ['new', 'shortlisted', 'applied', 'interview', 'offer', 'rejected', 'skipped']
 
 export interface Job {
   id: string
@@ -48,6 +48,7 @@ export interface Prefs {
   exclude_keywords: string[]
   min_score: number
   sources: Record<SourceKey, boolean>
+  answers: { label: string; value: string }[]
 }
 
 export const DEFAULT_PREFS: Prefs = {
@@ -63,7 +64,15 @@ export const DEFAULT_PREFS: Prefs = {
   exclude_companies: [],
   exclude_keywords: [],
   min_score: 50,
-  sources: { job_api: true, gmail: false, linkedin: false, naukri: false }
+  sources: { job_api: true, gmail: false, linkedin: false, naukri: false },
+  answers: [
+    { label: 'Notice period', value: '' },
+    { label: 'Current CTC', value: '' },
+    { label: 'Expected CTC', value: '' },
+    { label: 'Total experience', value: '' },
+    { label: 'Preferred locations', value: '' },
+    { label: 'Why are you looking for a change?', value: '' }
+  ]
 }
 
 export interface Profile {
@@ -85,6 +94,8 @@ export interface Match extends Job {
   score: number | null
   reasons: string[]
   red_flags: string[]
+  matched: string[]
+  missing: string[]
   cover_note: string | null
   scored_at: string | null
   status: Status
@@ -98,6 +109,7 @@ export interface ProfileStats {
   scored: number
   avg_score: number
   new_today: number
+  unscored?: number
   by_status: Partial<Record<Status, number>>
   by_source: Record<string, number>
 }
@@ -122,12 +134,12 @@ export interface Run {
 export type LlmProvider = 'anthropic' | 'openai_compat'
 
 export interface AppSettings {
-  llm: { provider: LlmProvider; baseUrl: string; model: string; concurrency: number }
+  llm: { provider: LlmProvider; baseUrl: string; model: string; fallbackModels: string[]; concurrency: number }
   model: string
   effort: 'low' | 'medium' | 'high'
   jobApi: { provider: 'jsearch' | 'adzuna'; resultsPerQuery: number; maxQueriesPerRun: number; datePosted: 'all' | 'today' | '3days' | 'week' | 'month' }
   gmail: { lookbackDays: number; maxMessages: number }
-  browser: { pagesPerSitePerDay: number; minDelayS: number; maxDelayS: number }
+  browser: { pagesPerSitePerDay: number; minDelayS: number; maxDelayS: number; showWindow: boolean }
   scoring: { maxJobsPerRun: number }
   schedule: { enabled: boolean; time: string; weekdaysOnly: boolean }
   notify: boolean

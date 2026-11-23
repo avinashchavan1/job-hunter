@@ -15,7 +15,8 @@ const api = {
   },
   matches: {
     list: (pid: number, opts?: { includeFiltered?: boolean; status?: Status }) => inv<Match[]>('matches:list', pid, opts),
-    setStatus: (pid: number, jid: string, status: Status, notes?: string) => inv<void>('matches:setStatus', pid, jid, status, notes)
+    setStatus: (pid: number, jid: string, status: Status, notes?: string) => inv<void>('matches:setStatus', pid, jid, status, notes),
+    rescore: (pid: number, jid: string) => inv<Match | null>('matches:rescore', pid, jid)
   },
   stats: (pid: number) => inv<ProfileStats>('stats', pid),
   runs: (pid: number) => inv<Run[]>('runs:list', pid),
@@ -51,6 +52,12 @@ const api = {
     disconnect: (pid: number) => inv<boolean>('gmail:disconnect', pid),
     connected: (pid: number) => inv<boolean>('gmail:connected', pid),
     probe: (pid: number) => inv<{ counts: { query: string; count: number }[]; domains: Record<string, number> }>('gmail:probe', pid)
+  },
+  health: () => inv<any>('health'),
+  browser: {
+    status: (pid: number) => inv<{ naukri: boolean; linkedin: boolean }>('browser:status', pid),
+    login: (pid: number, site: 'naukri' | 'linkedin') => inv<boolean>('browser:login', pid, site),
+    logout: (pid: number, site: 'naukri' | 'linkedin') => inv<boolean>('browser:logout', pid, site)
   },
   open: (url: string) => inv<void>('shell:open', url)
 }

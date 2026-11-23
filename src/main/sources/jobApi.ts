@@ -1,9 +1,10 @@
 // Job-search APIs that allow automated use: JSearch (RapidAPI) or Adzuna.
 import { Job, Profile } from '../../shared/types'
-import { makeJob } from '../db'
+import { kvGet, kvSet, makeJob } from '../db'
 import { getSettings, secret } from '../settings'
 
-export class SourceNotConfigured extends Error {}
+import { SourceNotConfigured } from './errors'
+export { SourceNotConfigured }
 
 function queries(p: Profile, max: number): { title: string; location: string }[] {
   const titles = p.prefs.target_titles.length ? p.prefs.target_titles : p.profile?.suggested_search_titles ?? []
@@ -42,6 +43,13 @@ async function jsearchGet(params: URLSearchParams, key: string): Promise<any> {
     if (r.status === 429) throw new Error('JSearch quota/rate limit reached (HTTP 429)')
     if (!r.ok) throw new Error(`JSearch HTTP ${r.status}: ${text.slice(0, 200)}`)
     jsearchPath = p
+    // RapidAPI reports the plan quota on every response
+    const month = new Date().toISOString().slice(0, 7)
+    kvSet(`quota:jsearch:${month}`, String(Number(kvGet(`quota:jsearch:${month}`) || 0) + 1))
+    const lim = r.headers.get('x-ratelimit-requests-limit')
+    const rem = r.headers.get('x-ratelimit-requests-remaining')
+    if (lim) kvSet('jsearch_limit', lim)
+    if (rem) kvSet('jsearch_remaining', rem)
     return JSON.parse(text)
   }
   throw new Error(`JSearch: no known search endpoint responded (${last.slice(0, 120)})`)

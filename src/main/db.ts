@@ -65,6 +65,14 @@ export function db(): DatabaseSync {
     _db = new DatabaseSync(dbPath())
     _db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;')
     _db.exec(SCHEMA)
+    // additive migrations
+    for (const sql of ['ALTER TABLE scores ADD COLUMN matched TEXT', 'ALTER TABLE scores ADD COLUMN missing TEXT']) {
+      try {
+        _db.exec(sql)
+      } catch {
+        /* column exists */
+      }
+    }
   }
   return _db
 }
@@ -231,12 +239,24 @@ export function unscoredJobs(pid: number, limit: number): Job[] {
     .all(pid, limit) as any[]
 }
 
-export function saveScore(pid: number, jid: string, score: number, reasons: string[], flags: string[], note: string, model: string): void {
+export function saveScore(
+  pid: number, jid: string, score: number, reasons: string[], flags: string[], note: string, model: string,
+  matched: string[] = [], missing: string[] = []
+): void {
   db()
     .prepare(
-      `INSERT OR REPLACE INTO scores (profile_id, job_id, score, reasons, red_flags, cover_note, model, scored_at) VALUES (?,?,?,?,?,?,?,?)`
+      `INSERT OR REPLACE INTO scores (profile_id, job_id, score, reasons, red_flags, cover_note, model, scored_at, matched, missing) VALUES (?,?,?,?,?,?,?,?,?,?)`
     )
-    .run(pid, jid, score, JSON.stringify(reasons), JSON.stringify(flags), note, model, now())
+    .run(pid, jid, score, JSON.stringify(reasons), JSON.stringify(flags), note, model, now(), JSON.stringify(matched), JSON.stringify(missing))
+}
+
+export function unscoredCount(pid: number): number {
+  return (db()
+    .prepare(
+      `SELECT COUNT(*) n FROM profile_jobs pj LEFT JOIN scores s ON s.profile_id = pj.profile_id AND s.job_id = pj.job_id
+       WHERE pj.profile_id=? AND pj.filter_reason IS NULL AND s.job_id IS NULL`
+    )
+    .get(pid) as any).n
 }
 
 export function setStatus(pid: number, jid: string, status: Status, notes?: string): void {
@@ -261,7 +281,7 @@ export function listMatches(pid: number, opts: { includeFiltered?: boolean; stat
   const rows = db()
     .prepare(
       `SELECT j.*, pj.found_at, pj.sources, pj.filter_reason,
-              s.score, s.reasons, s.red_flags, s.cover_note, s.scored_at,
+              s.score, s.reasons, s.red_flags, s.cover_note, s.scored_at, s.matched, s.missing,
               COALESCE(a.status,'new') AS status, a.notes, a.updated_at AS status_at
        FROM profile_jobs pj JOIN jobs j ON j.id = pj.job_id
        LEFT JOIN scores s ON s.profile_id = pj.profile_id AND s.job_id = pj.job_id
@@ -270,7 +290,8 @@ export function listMatches(pid: number, opts: { includeFiltered?: boolean; stat
        ORDER BY (s.score IS NULL), s.score DESC, pj.found_at DESC`
     )
     .all(...vals) as any[]
-  return rows.map((r) => ({ ...r, reasons: r.reasons ? JSON.parse(r.reasons) : [], red_flags: r.red_flags ? JSON.parse(r.red_flags) : [] }))
+  const arr = (v: string | null): string[] => (v ? JSON.parse(v) : [])
+  return rows.map((r) => ({ ...r, reasons: arr(r.reasons), red_flags: arr(r.red_flags), matched: arr(r.matched), missing: arr(r.missing) }))
 }
 
 export function stats(pid: number): ProfileStats {

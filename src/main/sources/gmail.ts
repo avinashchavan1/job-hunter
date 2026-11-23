@@ -192,7 +192,7 @@ const Extracted = z.object({
 const SYSTEM =
   'You extract job postings from a job-alert email (LinkedIn, Naukri, Indeed, Instahyre, Foundit, etc.). Return every distinct job listed. ' +
   'Copy title, company, location exactly. For url use the link shown in angle brackets next to that job. ' +
-  'Ignore ads, "people also viewed", courses, and settings links. If the email lists no jobs, return an empty list.'
+  'Ignore ads, "people also viewed", courses, community posts, company reviews and settings links. Only include items that have a job link. If the email lists no jobs, return an empty list.'
 
 export async function fetchGmailJobs(p: Profile, log: (s: string) => void): Promise<Job[]> {
   const c = await authed(p)
@@ -213,15 +213,16 @@ export async function fetchGmailJobs(p: Profile, log: (s: string) => void): Prom
     const site = (ALERT_SENDERS.find((d) => from.toLowerCase().includes(d)) || 'other').split('.')[0]
     const { html, text } = partsOf(m.payload)
     const body = (html ? htmlToText(html) : text).slice(0, 14000)
-    // skip non-alert mail (connection requests, newsletters) cheaply
-    if (!/job|hiring|opening|vacanc|role|position/i.test(subject + ' ' + body.slice(0, 2000))) {
+    // skip non-alert mail cheaply: needs job wording AND at least one real job link (community digests / newsletters have none)
+    const hasJobLink = html ? /<https?:\/\/[^>]+>/.test(body) : /https?:\/\/\S*(jobs?\/view|job-listings|viewjob|jk=)/i.test(body)
+    if (!hasJobLink || !/job|hiring|opening|vacanc|role|position/i.test(subject + ' ' + body.slice(0, 2000))) {
       db.kvSet(`gmail_seen:${p.id}:${id}`, '1')
       continue
     }
     try {
       const out = await parse(SYSTEM, { text: `From: ${from}\nSubject: ${subject}\n\n${body}` }, Extracted, { effort: 'low', maxTokens: 6000 })
       for (const j of out.jobs) {
-        if (!j.title || !j.company) continue
+        if (!j.title || !j.company || !/^https?:\/\//.test(j.url || '')) continue
         jobs.push(
           db.makeJob({
             title: j.title,

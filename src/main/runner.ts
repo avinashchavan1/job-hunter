@@ -7,16 +7,18 @@ import { scorePending } from './matcher'
 import { getSettings } from './settings'
 import { fetchJobs as apiJobs, SourceNotConfigured } from './sources/jobApi'
 import { fetchGmailJobs } from './sources/gmail'
+import { fetchSite } from './sources/browser'
 
-export class StopSource extends Error {
-  // raised by browser sources on CAPTCHA / login wall / unusual-activity pages
-}
+import { StopSource } from './sources/errors'
+export { StopSource }
 
 type Fetcher = (p: Profile, log: (s: string) => void, alert: (a: RunAlert) => void) => Promise<Job[]>
 
 const registry: Partial<Record<SourceKey, Fetcher>> = {
   job_api: (p, log) => apiJobs(p, log),
-  gmail: (p, log) => fetchGmailJobs(p, log)
+  gmail: (p, log) => fetchGmailJobs(p, log),
+  naukri: (p, log) => fetchSite(p, 'naukri', log),
+  linkedin: (p, log) => fetchSite(p, 'linkedin', log)
 }
 
 export function registerSource(key: SourceKey, f: Fetcher): void {

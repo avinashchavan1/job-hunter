@@ -104,6 +104,9 @@ export function SettingsPage({ secrets, setSecrets }: { secrets: Record<SecretKe
             <input type="number" className="field" value={s.browser.maxDelayS} onChange={(e) => save({ browser: { ...s.browser, maxDelayS: Number(e.target.value) } })} />
           </div>
         </div>
+        <div className="mt-4">
+          <Toggle checked={s.browser.showWindow} onChange={(v) => save({ browser: { ...s.browser, showWindow: v } })} label="Show the Chrome window while reading" hint="Off = runs in the background. Turn on to watch what it does." />
+        </div>
       </Section>
     </div>
   )

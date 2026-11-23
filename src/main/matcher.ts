@@ -9,6 +9,8 @@ const MatchSchema = z.object({
   score: z.number().int().describe('0-100 fit score'),
   reasons: z.array(z.string()).describe('2-4 short reasons it fits, citing concrete overlap'),
   red_flags: z.array(z.string()).describe('0-3 concerns: gaps, seniority mismatch, location, shift, thin posting'),
+  matched_skills: z.array(z.string()).describe('Up to 8 requirements of the posting the candidate clearly has (short labels)'),
+  missing_skills: z.array(z.string()).describe('Up to 6 requirements of the posting the candidate lacks or does not show (short labels); empty if none'),
   cover_note: z.string().describe('Tailored note, 90-140 words, first person, plain text, no placeholders')
 })
 
@@ -66,7 +68,13 @@ export async function scoreJob(p: Profile, j: Job): Promise<z.infer<typeof Match
 
 export async function scorePending(p: Profile, limit: number, log: (s: string) => void): Promise<{ scored: number; score_failed: number }> {
   if (!p.profile) throw new Error('profile has no parsed resume yet')
-  const jobs = db.unscoredJobs(p.id, limit)
+  // best-first: cheap keyword relevance so slow models reach the likeliest matches early
+  const jobs = db
+    .unscoredJobs(p.id, limit * 4)
+    .map((j) => ({ j, r: relevance(p, j) }))
+    .sort((a, b) => b.r - a.r)
+    .slice(0, limit)
+    .map((x) => x.j)
   let scored = 0
   let failed = 0
   // small concurrency: fast enough, gentle on rate limits
@@ -75,7 +83,7 @@ export async function scorePending(p: Profile, limit: number, log: (s: string) =
     for (let j = queue.shift(); j; j = queue.shift()) {
       try {
         const m = await scoreJob(p, j)
-        db.saveScore(p.id, j.id, Math.max(0, Math.min(100, m.score)), m.reasons, m.red_flags, m.cover_note, model())
+        db.saveScore(p.id, j.id, Math.max(0, Math.min(100, m.score)), m.reasons, m.red_flags, m.cover_note, model(), m.matched_skills.slice(0, 8), m.missing_skills.slice(0, 6))
         scored++
         log(`scored ${String(m.score).padStart(3)}  ${j.title.slice(0, 60)} @ ${j.company.slice(0, 30)}`)
       } catch (e: any) {
@@ -88,4 +96,22 @@ export async function scorePending(p: Profile, limit: number, log: (s: string) =
   const n = engine() === 'anthropic' ? 3 : Math.max(1, getSettings().llm.concurrency)
   await Promise.all(Array.from({ length: n }, () => worker()))
   return { scored, score_failed: failed }
+}
+
+/** Keyword overlap between a posting and the profile (0..1). No LLM. */
+export function relevance(p: Profile, j: Job): number {
+  const words = (t: string): string[] => t.toLowerCase().split(/[^a-z0-9/+#.]+/).filter((w) => w.length > 2)
+  const title = new Set(words(j.title))
+  const body = new Set(words(`${j.title} ${j.description}`))
+  const titleTerms = new Set(p.prefs.target_titles.flatMap(words))
+  const skillTerms = new Set([...(p.profile?.skills ?? []), ...(p.profile?.tools_and_modules ?? [])].flatMap(words))
+  const hit = (set: Set<string>, terms: Set<string>): number => (terms.size ? [...terms].filter((t) => set.has(t)).length / terms.size : 0)
+  return 0.6 * hit(title, titleTerms) + 0.4 * hit(body, skillTerms)
+}
+
+export async function rescoreOne(p: Profile, jobId: string): Promise<void> {
+  const j = db.getJob(jobId)
+  if (!j || !p.profile) throw new Error('job or profile not found')
+  const m = await scoreJob(p, j)
+  db.saveScore(p.id, j.id, Math.max(0, Math.min(100, m.score)), m.reasons, m.red_flags, m.cover_note, model(), m.matched_skills.slice(0, 8), m.missing_skills.slice(0, 6))
 }

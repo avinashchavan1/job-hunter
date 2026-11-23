@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { CheckCircle2, Cpu, Radar, Sparkles, XCircle } from 'lucide-react'
 import type { AppSettings, SecretKey } from '@shared/types'
-import { Spinner, cx } from '../ui'
+import { ChipInput, Spinner, cx } from '../ui'
 import { ExtLink, KeyField } from './KeyField'
 
 export function llmReady(s: AppSettings, secrets: Record<SecretKey, boolean>): boolean {
@@ -121,6 +121,19 @@ export function AiEngine({
               <input type="number" min={1} max={4} className="field" value={s.llm.concurrency} onChange={(e) => setLlm({ concurrency: Math.min(4, Math.max(1, Number(e.target.value))) })} />
               <p className="mt-1.5 text-xs text-ink-400">Keep at 1 for free tiers to avoid rate limits.</p>
             </div>
+          </div>
+          <div>
+            <label className="label">Fallback models (tried in order when the main one is busy)</label>
+            <ChipInput value={s.llm.fallbackModels ?? []} onChange={(v) => setLlm({ fallbackModels: v })} placeholder="e.g. google/gemma-4-31b-it:free — press Enter" />
+            {models.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-ink-400">
+                Free picks:
+                {models.filter((m) => m.endsWith(':free') && m !== s.llm.model && !(s.llm.fallbackModels ?? []).includes(m)).slice(0, 6).map((m) => (
+                  <button key={m} className="rounded-lg border border-dashed border-white/15 px-2 py-0.5 hover:border-brand-500/50 hover:text-brand-400"
+                    onClick={() => setLlm({ fallbackModels: [...(s.llm.fallbackModels ?? []), m] })}>+ {m}</button>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <button className="btn btn-outline" disabled={testing || !s.llm.baseUrl} onClick={runTest}>{testing ? <Spinner /> : null} Test connection</button>

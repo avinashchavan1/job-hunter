@@ -1,5 +1,7 @@
 import { ReactNode, useEffect, useState } from 'react'
-import { Briefcase, History, ListChecks, Plus, Settings, UserRound } from 'lucide-react'
+import { Activity, Briefcase, KanbanSquare, History, ListChecks, Plus, Settings, UserRound } from 'lucide-react'
+import { HealthPage } from './pages/HealthPage'
+import { BoardPage } from './pages/BoardPage'
 import type { AppSettings, Profile, SecretKey } from '@shared/types'
 import { llmReady } from './components/AiEngine'
 import { Matches } from './pages/Matches'
@@ -9,7 +11,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { Onboarding } from './pages/Onboarding'
 import { Spinner, cx } from './ui'
 
-type Page = 'matches' | 'profile' | 'runs' | 'settings'
+type Page = 'matches' | 'board' | 'profile' | 'runs' | 'health' | 'settings'
 
 export default function App(): ReactNode {
   const [profiles, setProfiles] = useState<Profile[] | null>(null)
@@ -77,11 +79,11 @@ export default function App(): ReactNode {
   const profile = profiles.find((p) => p.id === pid) ?? profiles[0]
   const isRunning = running.has(profile.id)
   const updateProfile = (p: Profile): void => setProfiles((ps) => ps!.map((x) => (x.id === p.id ? p : x)))
-  const run = async (): Promise<void> => {
+  const run = async (scoreOnly = false): Promise<void> => {
     setRunErr('')
     try {
       setRunning((r) => new Set(r).add(profile.id))
-      await window.api.run.start(profile.id)
+      await window.api.run.start(profile.id, scoreOnly ? [] : undefined)
       setPage('matches')
     } catch (e: any) {
       setRunning((r) => { const n = new Set(r); n.delete(profile.id); return n })
@@ -91,8 +93,10 @@ export default function App(): ReactNode {
 
   const nav: { key: Page; label: string; icon: ReactNode }[] = [
     { key: 'matches', label: 'Matches', icon: <ListChecks size={16} /> },
+    { key: 'board', label: 'Applications', icon: <KanbanSquare size={16} /> },
     { key: 'profile', label: 'Profile & preferences', icon: <UserRound size={16} /> },
-    { key: 'runs', label: 'Run history', icon: <History size={16} /> }
+    { key: 'runs', label: 'Run history', icon: <History size={16} /> },
+    { key: 'health', label: 'Health & quotas', icon: <Activity size={16} /> }
   ]
 
   return (
@@ -152,6 +156,8 @@ export default function App(): ReactNode {
         {page === 'matches' && <Matches profile={profile} running={isRunning} onRun={run} />}
         {page === 'profile' && <ProfilePage profile={profile} onChange={updateProfile} onDeleted={async () => { const ps = await refresh(); setPid(ps[0]?.id ?? null); setPage('matches') }} />}
         {page === 'runs' && <RunsPage profile={profile} running={isRunning} />}
+        {page === 'board' && <BoardPage profile={profile} />}
+        {page === 'health' && <HealthPage running={running.size > 0} />}
         {page === 'settings' && <SettingsPage secrets={secrets} setSecrets={setSecrets} />}
       </main>
     </div>

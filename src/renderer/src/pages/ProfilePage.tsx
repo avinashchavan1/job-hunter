@@ -1,14 +1,16 @@
 import { ReactNode, useEffect, useState } from 'react'
 import { FileText, RefreshCw, Save, Trash2, Upload } from 'lucide-react'
 import { GmailConnect } from '../components/Gmail'
+import { SiteLogin } from '../components/SiteLogin'
+import { AnswersEditor, withDefaults } from '../components/Answers'
 import type { Prefs, Profile, SourceKey } from '@shared/types'
 import { Chip, ChipInput, Section, Spinner, Toggle } from '../ui'
 
 const SOURCES: { key: SourceKey; label: string; hint: string }[] = [
   { key: 'job_api', label: 'Job search API', hint: 'JSearch / Adzuna — aggregates LinkedIn, Naukri, Indeed and company sites' },
   { key: 'gmail', label: 'Gmail job alerts', hint: 'Reads LinkedIn & Naukri alert emails (connect Gmail first)' },
-  { key: 'linkedin', label: 'LinkedIn (browser)', hint: 'Read-only, slow, capped. Sign in once in the app browser.' },
-  { key: 'naukri', label: 'Naukri (browser)', hint: 'Read-only, slow, capped. Sign in once in the app browser.' }
+  { key: 'linkedin', label: 'LinkedIn (browser)', hint: 'Read-only, 5–20 s between pages, max 40 pages/day. Stops on any CAPTCHA.' },
+  { key: 'naukri', label: 'Naukri (browser)', hint: 'Read-only, 5–20 s between pages, max 40 pages/day. Stops on any CAPTCHA.' }
 ]
 
 export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile; onChange: (p: Profile) => void; onDeleted: () => void }): ReactNode {
@@ -163,11 +165,18 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
         </div>
       </Section>
 
+      <Section title="Saved answers" desc="Common application questions. Copy them with one click from any job.">
+        <AnswersEditor value={withDefaults(prefs.answers ?? [], { ...profile, prefs })} onChange={(v) => set('answers', v)} />
+      </Section>
+
       <Section title="Sources" desc="Where to look. The app never applies, never creates accounts, never asks for passwords.">
         <div className="grid grid-cols-2 gap-4">
           {SOURCES.map((s) => (
             <div key={s.key} className="rounded-xl border border-white/[0.06] bg-ink-850/60 p-3.5">
               <Toggle checked={prefs.sources[s.key]} onChange={(v) => set('sources', { ...prefs.sources, [s.key]: v })} label={s.label} hint={s.hint} />
+              {(s.key === 'naukri' || s.key === 'linkedin') && (
+                <SiteLogin profile={profile} site={s.key} onChange={async () => { const p = await window.api.profiles.get(profile.id); if (p) onChange(p) }} />
+              )}
               {s.key === 'gmail' && (
                 <GmailConnect
                   profile={profile}

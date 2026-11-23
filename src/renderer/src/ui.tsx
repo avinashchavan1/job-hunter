@@ -125,7 +125,7 @@ export function CopyButton({ text, label = 'Copy' }: { text: string; label?: str
       }}
     >
       {done ? <Check size={14} className="text-emerald-300" /> : <Copy size={14} />}
-      {done ? 'Copied' : label}
+      {label ? (done ? 'Copied' : label) : null}
     </button>
   )
 }
