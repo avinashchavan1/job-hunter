@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings, Match, Prefs, Profile, ProfileStats, Run, RunProgress, SecretKey, SourceKey, Status } from '../shared/types'
+import type { AppSettings, Match, Prefs, Profile, ProfileStats, Run, RunProgress, SecretKey, SourceKey, Status, Contact } from '../shared/types'
 
 const inv = <T>(ch: string, ...a: unknown[]): Promise<T> => ipcRenderer.invoke(ch, ...a) as Promise<T>
 
@@ -11,7 +11,8 @@ const api = {
     update: (id: number, patch: Partial<{ name: string; prefs: Prefs; active: boolean }>) => inv<Profile>('profiles:update', id, patch),
     remove: (id: number) => inv<void>('profiles:delete', id),
     importResume: (id: number, path?: string) => inv<Profile>('profiles:importResume', id, path),
-    resumeName: (id: number) => inv<string | null>('profiles:resumeName', id)
+    resumeName: (id: number) => inv<string | null>('profiles:resumeName', id),
+    contactFromResume: (id: number) => inv<Partial<Contact>>('profiles:contactFromResume', id)
   },
   matches: {
     list: (pid: number, opts?: { includeFiltered?: boolean; status?: Status }) => inv<Match[]>('matches:list', pid, opts),
@@ -58,6 +59,9 @@ const api = {
     status: (pid: number) => inv<{ naukri: boolean; linkedin: boolean }>('browser:status', pid),
     login: (pid: number, site: 'naukri' | 'linkedin') => inv<boolean>('browser:login', pid, site),
     logout: (pid: number, site: 'naukri' | 'linkedin') => inv<boolean>('browser:logout', pid, site)
+  },
+  autofill: {
+    open: (pid: number, jobId: string) => inv<boolean>('autofill:open', pid, jobId)
   },
   open: (url: string) => inv<void>('shell:open', url)
 }

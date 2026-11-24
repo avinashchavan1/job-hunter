@@ -34,6 +34,19 @@ export interface ParsedProfile {
   summary: string
 }
 
+/** Details an application form asks for. Stored only on this computer; never sent to the AI. */
+export interface Contact {
+  full_name: string
+  email: string
+  phone: string
+  city: string
+  linkedin_url: string
+  portfolio_url: string
+  current_company: string
+  current_title: string
+}
+export const EMPTY_CONTACT: Contact = { full_name: '', email: '', phone: '', city: '', linkedin_url: '', portfolio_url: '', current_company: '', current_title: '' }
+
 export interface Prefs {
   target_titles: string[]
   locations: string[]
@@ -49,6 +62,7 @@ export interface Prefs {
   min_score: number
   sources: Record<SourceKey, boolean>
   answers: { label: string; value: string }[]
+  contact: Contact
 }
 
 export const DEFAULT_PREFS: Prefs = {
@@ -72,7 +86,8 @@ export const DEFAULT_PREFS: Prefs = {
     { label: 'Total experience', value: '' },
     { label: 'Preferred locations', value: '' },
     { label: 'Why are you looking for a change?', value: '' }
-  ]
+  ],
+  contact: EMPTY_CONTACT
 }
 
 export interface Profile {
@@ -142,6 +157,7 @@ export interface AppSettings {
   browser: { pagesPerSitePerDay: number; minDelayS: number; maxDelayS: number; showWindow: boolean }
   scoring: { maxJobsPerRun: number }
   schedule: { enabled: boolean; time: string; weekdaysOnly: boolean }
+  autofill: { linkedin: boolean }
   notify: boolean
   openAtLogin: boolean
 }

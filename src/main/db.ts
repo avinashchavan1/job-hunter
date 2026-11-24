@@ -135,6 +135,14 @@ export function kvSet(k: string, v: string): void {
 }
 
 // ---------- profiles ----------
+function mergePrefs(saved: Partial<Prefs>): Prefs {
+  return {
+    ...DEFAULT_PREFS,
+    ...saved,
+    sources: { ...DEFAULT_PREFS.sources, ...(saved.sources || {}) },
+    contact: { ...DEFAULT_PREFS.contact, ...(saved.contact || {}) }
+  }
+}
 function rowToProfile(r: any): Profile | null {
   if (!r) return null
   return {
@@ -143,7 +151,7 @@ function rowToProfile(r: any): Profile | null {
     name: r.name,
     resume_path: r.resume_path,
     profile: r.profile_json ? JSON.parse(r.profile_json) : null,
-    prefs: { ...DEFAULT_PREFS, ...JSON.parse(r.prefs_json || '{}'), sources: { ...DEFAULT_PREFS.sources, ...(JSON.parse(r.prefs_json || '{}').sources || {}) } },
+    prefs: mergePrefs(JSON.parse(r.prefs_json || '{}')),
     active: !!r.active,
     created_at: r.created_at,
     gmail_email: r.gmail_email

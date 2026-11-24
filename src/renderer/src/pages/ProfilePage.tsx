@@ -3,6 +3,7 @@ import { FileText, RefreshCw, Save, Trash2, Upload } from 'lucide-react'
 import { GmailConnect } from '../components/Gmail'
 import { SiteLogin } from '../components/SiteLogin'
 import { AnswersEditor, withDefaults } from '../components/Answers'
+import { ContactEditor } from '../components/Contact'
 import type { Prefs, Profile, SourceKey } from '@shared/types'
 import { Chip, ChipInput, Section, Spinner, Toggle } from '../ui'
 
@@ -165,7 +166,11 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
         </div>
       </Section>
 
-      <Section title="Saved answers" desc="Common application questions. Copy them with one click from any job.">
+      <Section title="Application details" desc="Used by Autofill on application forms. Stored only on this computer — never sent to the AI.">
+        <ContactEditor profileId={profile.id} value={prefs.contact} onChange={(v) => set('contact', v)} hasResume={!!profile.resume_path} />
+      </Section>
+
+      <Section title="Saved answers" desc="Common application questions. Autofill uses these too, and you can copy them from any job.">
         <AnswersEditor value={withDefaults(prefs.answers ?? [], { ...profile, prefs })} onChange={(v) => set('answers', v)} />
       </Section>
 

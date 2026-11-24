@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle, Ban, Briefcase, Building2, CheckCircle2, ChevronDown, Clock, ExternalLink, IndianRupee, MapPin, Play, Search,
-  RefreshCw, Sparkles, Star, ThumbsDown, Undo2
+  RefreshCw, Sparkles, Star, ThumbsDown, Undo2, Wand2
 } from 'lucide-react'
 import type { Match, Prefs, Profile, ProfileStats, Status } from '@shared/types'
 import { QuickAnswers, withDefaults } from '../components/Answers'
@@ -139,7 +139,7 @@ export function Matches({ profile, running, onRun }: { profile: Profile; running
       ) : (
         <div className="space-y-2.5">
           {list.map((m) => (
-            <MatchCard key={m.id} m={m} answers={withDefaults(profile.prefs.answers ?? [], profile)} open={open === m.id} onToggle={() => setOpen(open === m.id ? null : m.id)} onStatus={(s) => setStatus(m, s)}
+            <MatchCard key={m.id} m={m} answers={withDefaults(profile.prefs.answers ?? [], profile)} open={open === m.id} onToggle={() => setOpen(open === m.id ? null : m.id)} onStatus={(s) => setStatus(m, s)} profileId={profile.id}
               onRescore={async () => {
                 const u = await window.api.matches.rescore(profile.id, m.id)
                 if (u) setRows((rs) => rs.map((r) => (r.id === m.id ? { ...r, ...u } : r)))
@@ -170,8 +170,22 @@ function Empty({ tab, hasAny, onRun, running }: { tab: Tab; hasAny: boolean; onR
   )
 }
 
-function MatchCard({ m, answers, open, onToggle, onStatus, onRescore }: { m: Match; answers: Prefs['answers']; open: boolean; onToggle: () => void; onStatus: (s: Status) => void; onRescore: () => Promise<void> }): ReactNode {
+function MatchCard({ m, answers, open, onToggle, onStatus, onRescore, profileId }: { m: Match; answers: Prefs['answers']; open: boolean; onToggle: () => void; onStatus: (s: Status) => void; onRescore: () => Promise<void>; profileId: number }): ReactNode {
   const [rescoring, setRescoring] = useState(false)
+  const [af, setAf] = useState<'' | 'busy' | 'open'>('')
+  const [afErr, setAfErr] = useState('')
+  const autofill = async (): Promise<void> => {
+    setAfErr('')
+    setAf('busy')
+    try {
+      await window.api.autofill.open(profileId, m.id)
+      setAf('open')
+      setTimeout(() => setAf(''), 4000)
+    } catch (e: any) {
+      setAf('')
+      setAfErr(String(e?.message ?? e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
+    }
+  }
   const [rerr, setRerr] = useState('')
   const srcs = (m.sources || m.source || '').split(',').filter(Boolean)
   const done = m.status === 'applied'
@@ -201,6 +215,19 @@ function MatchCard({ m, answers, open, onToggle, onStatus, onRescore }: { m: Mat
         </div>
         {m.url && (
           <button
+            className="btn btn-outline !py-1.5"
+            title="Opens in Job Hunter's Chrome window with an Autofill button. It fills the form — you check and submit."
+            disabled={af === 'busy'}
+            onClick={(e) => {
+              e.stopPropagation()
+              void autofill()
+            }}
+          >
+            {af === 'busy' ? <Spinner size={14} /> : <Wand2 size={14} />} {af === 'open' ? 'Opened in Chrome' : 'Autofill'}
+          </button>
+        )}
+        {m.url && (
+          <button
             className="btn btn-primary !py-1.5"
             onClick={(e) => {
               e.stopPropagation()
@@ -212,6 +239,7 @@ function MatchCard({ m, answers, open, onToggle, onStatus, onRescore }: { m: Mat
         )}
         <ChevronDown size={18} className={cx('text-ink-400 transition', open && 'rotate-180')} />
       </div>
+      {afErr && <p className="-mt-1 px-4 pb-3 text-xs text-rose-700 dark:text-rose-300">{afErr}</p>}
 
       {open && (
         <div className="grid grid-cols-5 gap-5 border-t border-line px-4 py-4">

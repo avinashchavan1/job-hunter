@@ -286,3 +286,8 @@ export async function fetchSite(p: Profile, site: Site, log: (s: string) => void
   log(`${site}: ${found.size} jobs · ${db.pagesUsed(p.id, site)}/${cap} pages used today`)
   return [...found.values()]
 }
+
+/** The person's visible Job Hunter Chrome window (shared with sign-in). Used by autofill. */
+export async function visibleContext(p: Profile): Promise<BrowserContext> {
+  return context(p, false)
+}

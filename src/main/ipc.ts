@@ -6,7 +6,8 @@ import { AppSettings, DEFAULT_PREFS, Prefs, Profile, RunProgress, SecretKey, Sou
 import * as db from './db'
 import { cooledModels, detectFreeLLMAPI, engineLabel, listCompatModels, llmHealth, modelChain, testEngine } from './llm'
 import { profileDir, slugify } from './paths'
-import { parseResume, prefsFromProfile } from './resume'
+import { parseResume, prefsFromProfile, resumeText } from './resume'
+import { openForApply } from './autofill'
 import { isRunning, runProfile } from './runner'
 import { rescoreOne } from './matcher'
 import { nextRunAt } from './scheduler'
@@ -158,6 +159,31 @@ export function registerIpc(): void {
   h('browser:logout', async (pid: number, site: Site) => {
     await logout(db.getProfile(pid)!, site)
     return true
+  })
+
+  // autofill
+  h('autofill:open', async (pid: number, jobId: string) => {
+    const p = db.getProfile(pid)
+    if (!p) throw new Error('profile not found')
+    await openForApply(p, jobId)
+    return true
+  })
+  // contact details read locally from the resume file (regex only — nothing is sent anywhere)
+  h('profiles:contactFromResume', async (pid: number) => {
+    const p = db.getProfile(pid)
+    if (!p?.resume_path) throw new Error('Add a resume first')
+    const t = await resumeText(p.resume_path)
+    const email = (t.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/) || [''])[0]
+    const phone = ((t.match(/(\+?91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}/) || [''])[0] || '').replace(/[\s-]/g, '')
+    const li = (t.match(/(https?:\/\/)?([a-z]{2,3}\.)?linkedin\.com\/in\/[A-Za-z0-9_%-]+/i) || [''])[0]
+    return {
+      full_name: p.profile?.name ?? '',
+      email,
+      phone,
+      city: (p.profile?.current_location ?? '').split(',')[0].trim(),
+      linkedin_url: li && !/^https?:/.test(li) ? `https://${li}` : li,
+      current_title: p.profile?.current_title ?? ''
+    }
   })
 
   // health

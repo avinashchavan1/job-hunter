@@ -108,6 +108,10 @@ export function SettingsPage({ secrets, setSecrets }: { secrets: Record<SecretKe
           <Toggle checked={s.browser.showWindow} onChange={(v) => save({ browser: { ...s.browser, showWindow: v } })} label="Show the Chrome window while reading" hint="Off = runs in the background. Turn on to watch what it does." />
         </div>
       </Section>
+
+      <Section title="Autofill" desc="The Autofill button on a job opens it in Job Hunter's Chrome window. Click ✦ Autofill on the application form: it fills empty fields from your profile and attaches your resume. It never clicks Next or Submit and never touches sign-in or sign-up pages.">
+        <Toggle checked={s.autofill.linkedin} onChange={(v) => save({ autofill: { ...s.autofill, linkedin: v } })} label="Allow autofill on LinkedIn (Easy Apply)" hint="Off by default. LinkedIn's terms forbid automation and accounts that use it can be restricted. Company career sites and Naukri are not affected by this switch." />
+      </Section>
     </div>
   )
 }
