@@ -7,7 +7,7 @@ import * as db from './db'
 import { cooledModels, detectFreeLLMAPI, engineLabel, listCompatModels, llmHealth, modelChain, testEngine } from './llm'
 import { profileDir, slugify } from './paths'
 import { parseResume, prefsFromProfile, resumeText } from './resume'
-import { openForApply } from './autofill'
+import { inspect, openForApply } from './autofill'
 import { isRunning, runProfile } from './runner'
 import { rescoreOne } from './matcher'
 import { nextRunAt } from './scheduler'
@@ -168,6 +168,7 @@ export function registerIpc(): void {
     await openForApply(p, jobId)
     return true
   })
+  h('autofill:inspect', async (pid: number) => inspect(db.getProfile(pid)!))
   // contact details read locally from the resume file (regex only — nothing is sent anywhere)
   h('profiles:contactFromResume', async (pid: number) => {
     const p = db.getProfile(pid)

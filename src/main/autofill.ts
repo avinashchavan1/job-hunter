@@ -114,6 +114,37 @@ async function prepare(ctx: BrowserContext): Promise<void> {
   await ctx.addInitScript({ content: `(${pageScript.toString()})()` })
 }
 
+/** Debug: list form fields (labels/types only, never values) on every open page of the Job Hunter window. */
+export async function inspect(p: Profile): Promise<unknown> {
+  const ctx = await visibleContext(p)
+  const out: unknown[] = []
+  for (const page of ctx.pages()) {
+    for (const f of page.frames()) {
+      const fields = await f
+        .evaluate(() => {
+          const res: string[] = []
+          const walk = (root: Document | ShadowRoot, depth: number): void => {
+            root.querySelectorAll('input, textarea, select, [contenteditable], [role="textbox"], [role="combobox"]').forEach((e) => {
+              const el = e as HTMLInputElement
+              const r = el.getBoundingClientRect()
+              const lab = [el.getAttribute('aria-label'), el.placeholder, el.name, el.id, el.closest('label')?.textContent, el.parentElement?.textContent]
+                .filter(Boolean).join(' | ').replace(/\s+/g, ' ').slice(0, 120)
+              res.push(`${depth ? 'shadow ' : ''}${el.tagName.toLowerCase()}[${el.type || el.getAttribute('role') || el.getAttribute('contenteditable') || ''}] ${r.width > 0 ? 'vis' : 'hid'} ${lab}`)
+            })
+            root.querySelectorAll('*').forEach((e) => { if ((e as HTMLElement).shadowRoot) walk((e as HTMLElement).shadowRoot!, depth + 1) })
+          }
+          walk(document, 0)
+          return { loaded: !!(window as any).__jhLoaded, fields: res.slice(0, 80) }
+        })
+        .catch((e) => ({ error: String(e).slice(0, 200) }))
+      let u = ''
+      try { const x = new URL(f.url()); u = x.host + x.pathname } catch { u = f.url().slice(0, 80) }
+      out.push({ frame: u, ...fields })
+    }
+  }
+  return out
+}
+
 /** Open the job's posting in the Job Hunter Chrome window with the Autofill button available. */
 export async function openForApply(p: Profile, jobId: string): Promise<void> {
   const m = db.listMatches(p.id, { includeFiltered: true }).find((x) => x.id === jobId)
@@ -172,7 +203,8 @@ function pageScript(): void {
     const parts: string[] = []
     if (el.id) {
       try {
-        const l = document.querySelector(`label[for="${CSS.escape(el.id)}"]`) as HTMLElement | null
+        const rn = el.getRootNode() as Document | ShadowRoot
+        const l = (rn.querySelector?.(`label[for="${CSS.escape(el.id)}"]`) || document.querySelector(`label[for="${CSS.escape(el.id)}"]`)) as HTMLElement | null
         if (l) parts.push(l.innerText)
       } catch { /* bad id */ }
     }
@@ -185,10 +217,10 @@ function pageScript(): void {
       // nearest preceding text in the field's container
       let n: HTMLElement | null = el
       for (let i = 0; i < 4 && n && !parts.join('').trim(); i++) {
+        const prev = n.previousElementSibling as HTMLElement | null
+        if (prev && prev.innerText && prev.innerText.trim() && prev.innerText.length < 200) { parts.push(prev.innerText); break }
         n = n.parentElement
-        const prev = n?.previousElementSibling as HTMLElement | null
-        if (prev && prev.innerText && prev.innerText.length < 200) parts.push(prev.innerText)
-        else if (n && n.innerText && n.innerText.length < 160) parts.push(n.innerText)
+        if (n && n.innerText && n.innerText.trim() && n.innerText.length < 160 && n !== document.body) parts.push(n.innerText)
       }
     }
     parts.push((el.getAttribute('name') || '').replace(/[_\-\[\].]/g, ' '), (el.id || '').replace(/[_\-]/g, ' '))
@@ -236,30 +268,48 @@ function pageScript(): void {
     return true
   }
 
+  function setEditable(el: HTMLElement, v: string): boolean {
+    el.focus()
+    const ok = document.execCommand && document.execCommand('insertText', false, v)
+    if (!ok || !(el.innerText || '').trim()) el.innerText = v
+    el.dispatchEvent(new InputEvent('input', { bubbles: true, data: v, inputType: 'insertText' }))
+    el.dispatchEvent(new Event('change', { bubbles: true }))
+    return true
+  }
+
   const mark = (el: HTMLElement, color: string): void => {
     el.style.outline = `2px solid ${color}`
     el.style.outlineOffset = '1px'
   }
 
-  function fillHere(data: { values: Record<string, string>; answers: { label: string; value: string }[] }): { filled: number; missing: number } {
+  function fillHere(data: { values: Record<string, string>; answers: { label: string; value: string }[] }): { filled: number; missing: number; seen: number } {
     let filled = 0
     let missing = 0
-    const els = Array.from(document.querySelectorAll('input, textarea, select')) as HTMLElement[]
+    const els: HTMLElement[] = []
+    const walk = (root: Document | ShadowRoot): void => {
+      root.querySelectorAll('input, textarea, select, [contenteditable="true"], [contenteditable=""], [role="textbox"]').forEach((e) => els.push(e as HTMLElement))
+      root.querySelectorAll('*').forEach((e) => { if ((e as HTMLElement).shadowRoot) walk((e as HTMLElement).shadowRoot!) })
+    }
+    walk(document)
+    let seen = 0
     for (const el of els) {
+      if (el.closest('#__jh_host')) continue
+      const editable = !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)
       const input = el as HTMLInputElement
       const type = (input.type || '').toLowerCase()
       if (el.tagName === 'INPUT' && /^(hidden|password|submit|button|reset|checkbox|radio|file|image|search|range|color)$/.test(type)) continue
       if (input.disabled || input.readOnly || !visible(el)) continue
+      seen++
       const label = labelOf(el)
       if (/password|captcha|otp|verification code/.test(label)) continue
       const required = input.required || el.getAttribute('aria-required') === 'true' || /\*/.test(label)
       const isSelect = el.tagName === 'SELECT'
-      const empty = isSelect ? (el as HTMLSelectElement).selectedIndex <= 0 : !input.value.trim()
+      const empty = isSelect ? (el as HTMLSelectElement).selectedIndex <= 0 : editable ? !(el.innerText || '').trim() : !input.value.trim()
       if (!empty) continue
       const key = keyFor(el, label)
       let v = key ? data.values[key] || '' : ''
       if (!v) v = fromAnswers(label, data.answers)
-      if (key === 'cover' && el.tagName !== 'TEXTAREA') v = '' // long text only goes into big boxes
+      if (key === 'cover' && el.tagName !== 'TEXTAREA' && !editable) v = '' // long text only goes into big boxes
       if (v && type === 'number') {
         if (key === 'current_ctc' || key === 'expected_ctc') v = '' // unit is ambiguous (LPA vs rupees) — leave for the person
         else v = (v.match(/\d+(\.\d+)?/) || [''])[0]
@@ -267,22 +317,22 @@ function pageScript(): void {
       if (v && type === 'tel' && input.maxLength === 10) v = v.replace(/\D/g, '').slice(-10)
       if (v && type === 'email' && !v.includes('@')) v = ''
       let ok = false
-      if (v) ok = isSelect ? pickOption(el as HTMLSelectElement, v) : (setValue(input, v), true)
+      if (v) ok = isSelect ? pickOption(el as HTMLSelectElement, v) : editable ? setEditable(el, v) : (setValue(input, v), true)
       if (ok) { mark(el, GREEN); filled++ } else if (required) { mark(el, AMBER); missing++ }
     }
-    return { filled, missing }
+    return { filled, missing, seen }
   }
 
   // ---- frame plumbing: the top page asks every frame to fill and adds up the results ----
   const children = (): Window[] => Array.from({ length: window.frames.length }, (_, i) => window.frames[i])
-  async function fillTree(): Promise<{ filled: number; missing: number; blocked?: string }> {
+  async function fillTree(): Promise<{ filled: number; missing: number; seen: number; blocked?: string }> {
     const r = await w.__jhAutofill('data').catch(() => ({ blocked: 'other' }))
-    const mine = r.data ? fillHere(r.data) : { filled: 0, missing: 0 }
+    const mine = r.data ? fillHere(r.data) : { filled: 0, missing: 0, seen: 0 }
     const kids = children()
     if (!kids.length) return { ...mine, blocked: r.blocked }
     const id = Math.random().toString(36).slice(2)
-    const got = await new Promise<{ filled: number; missing: number }[]>((resolve) => {
-      const out: { filled: number; missing: number }[] = []
+    const got = await new Promise<{ filled: number; missing: number; seen: number }[]>((resolve) => {
+      const out: { filled: number; missing: number; seen: number }[] = []
       const on = (e: MessageEvent): void => {
         if (e.data?.jh === 'filled' && e.data.id === id) out.push(e.data)
       }
@@ -290,13 +340,13 @@ function pageScript(): void {
       kids.forEach((k) => { try { k.postMessage({ jh: 'fill', id }, '*') } catch { /* gone */ } })
       setTimeout(() => { window.removeEventListener('message', on); resolve(out) }, 1500)
     })
-    const total = got.reduce((a, b) => ({ filled: a.filled + b.filled, missing: a.missing + b.missing }), mine)
+    const total = got.reduce((a, b) => ({ filled: a.filled + b.filled, missing: a.missing + b.missing, seen: a.seen + (b.seen || 0) }), mine)
     return { ...total, blocked: r.blocked }
   }
   window.addEventListener('message', async (e) => {
     if (e.data?.jh !== 'fill' || e.source !== window.parent) return
     const r = await fillTree()
-    window.parent.postMessage({ jh: 'filled', id: e.data.id, filled: r.filled, missing: r.missing }, '*')
+    window.parent.postMessage({ jh: 'filled', id: e.data.id, filled: r.filled, missing: r.missing, seen: r.seen }, '*')
   })
   if (!isTop) return
 
@@ -329,12 +379,14 @@ function pageScript(): void {
         const r = await fillTree()
         if (r.blocked === 'linkedin') show('<b>Autofill is off for LinkedIn.</b><div class="m">LinkedIn’s terms forbid automation. You can turn it on in Job Hunter → Settings, at your own risk.</div>')
         else if (r.blocked === 'account') show('<b>This looks like a sign-in or sign-up page.</b><div class="m">Job Hunter never fills these. Sign in yourself, then click Autofill on the application form.</div>')
+        else if (r.seen === 0) show('<b>No form fields on this page.</b><div class="m">Open the application form first (click the site’s Apply button), then click Autofill.</div>')
         else {
           const files = await w.__jhAutofill('resume').catch(() => 0)
           show(
             `<b>Filled <span class="g">${r.filled}</span> field${r.filled === 1 ? '' : 's'}</b>` +
               (files ? ' · resume attached' : '') +
               (r.missing ? `<div class="a">${r.missing} required field${r.missing === 1 ? ' still needs' : 's still need'} you (amber).</div>` : '') +
+              (r.filled === 0 ? `<div class="m">Saw ${r.seen} field${r.seen === 1 ? '' : 's'} but none matched your details. Tell Job Hunter which site this was.</div>` : '') +
               '<div class="m">Check every field, then submit yourself. On multi-step forms, click Autofill again on each step.</div>'
           )
         }
