@@ -87,9 +87,25 @@ export const today = (): string => now().slice(0, 10)
 const norm = (s: string): string => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 
 /** Stable id: same title + company + city from any source collapses to one row. */
+const CITY_ALIAS: Record<string, string> = {
+  bengaluru: 'bangalore', gurugram: 'gurgaon', bombay: 'mumbai', 'new delhi': 'delhi', madras: 'chennai',
+  calcutta: 'kolkata', 'navi mumbai': 'mumbai', secunderabad: 'hyderabad', noida: 'noida', poona: 'pune'
+}
+function city(location: string): string {
+  const n = norm(location)
+  for (const [k, v] of Object.entries(CITY_ALIAS)) if (n === k || n.startsWith(k + ' ')) return v
+  return n.split(' ')[0] || ''
+}
+const hashId = (title: string, company: string, c: string): string =>
+  createHash('sha1').update(`${norm(title)}|${norm(company)}|${c}`).digest('hex').slice(0, 16)
+
+/** Stable id: same title + company + city from any source collapses to one row (Bengaluru = Bangalore, etc.). */
 export function jobId(j: Pick<Job, 'title' | 'company' | 'location'>): string {
-  const city = norm(j.location).split(' ')[0] || ''
-  return createHash('sha1').update(`${norm(j.title)}|${norm(j.company)}|${city}`).digest('hex').slice(0, 16)
+  const canonical = hashId(j.title, j.company, city(j.location))
+  // jobs saved before city aliases existed keep their original id, so status and scores are not lost
+  const legacy = hashId(j.title, j.company, norm(j.location).split(' ')[0] || '')
+  if (legacy !== canonical && !getJob(canonical) && getJob(legacy)) return legacy
+  return canonical
 }
 
 export function makeJob(p: Partial<Job> & { title: string; company: string }): Job {

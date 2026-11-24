@@ -21,7 +21,7 @@ export function SiteLogin({ profile, site, onChange }: { profile: Profile; site:
     try {
       const ok = await window.api.browser.login(profile.id, site)
       setStatus(ok)
-      if (!ok) setMsg('Window closed before sign-in finished.')
+      if (!ok) setMsg('Sign-in didn’t finish (window closed, or 10 minutes passed). Try again.')
       onChange()
     } catch (e: any) {
       setMsg(String(e?.message ?? e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))

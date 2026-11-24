@@ -19,13 +19,16 @@ const LOGIN_URL: Record<Site, string> = {
   naukri: 'https://www.naukri.com/nlogin/login',
   linkedin: 'https://www.linkedin.com/login'
 }
-const HOME_URL: Record<Site, string> = { naukri: 'https://www.naukri.com/mnjuser/homepage', linkedin: 'https://www.linkedin.com/feed/' }
 const AUTH_COOKIE: Record<Site, RegExp> = { naukri: /^(nauk_at|NKWAP|MYNAUKRI)/i, linkedin: /^li_at$/ }
 
 const BLOCK_TEXT = /unusual activity|verify (that )?you('| a)re (a )?human|security check|are you a robot|captcha|access denied|let's do a quick security check|temporarily restricted/i
 
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 const userDataDir = (p: Profile): string => join(profileDir(p.slug), 'browser')
-const open = new Map<string, BrowserContext>()
+// One Chrome per person: the persistent profile folder can only be opened by one browser at a time.
+const open = new Map<number, { ctx: BrowserContext; headless: boolean }>()
+
+export class BrowserBusy extends Error {}
 
 function chromePath(): string | undefined {
   const mac = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
@@ -33,26 +36,52 @@ function chromePath(): string | undefined {
 }
 
 async function context(p: Profile, headless: boolean): Promise<BrowserContext> {
-  const key = `${p.id}:${headless}`
-  const existing = open.get(key)
-  if (existing) return existing
-  const ctx = await chromium.launchPersistentContext(userDataDir(p), {
-    headless,
-    executablePath: chromePath(),
-    channel: chromePath() ? undefined : 'chrome',
-    viewport: { width: 1280, height: 860 },
-    locale: 'en-IN',
-    timezoneId: 'Asia/Kolkata',
-    args: ['--disable-blink-features=AutomationControlled']
-  })
-  ctx.on('close', () => open.delete(key))
-  open.set(key, ctx)
+  const existing = open.get(p.id)
+  if (existing) {
+    if (existing.headless === headless) return existing.ctx
+    throw new BrowserBusy(
+      existing.headless
+        ? 'A search is reading Naukri/LinkedIn for this person right now. Try signing in again when it finishes.'
+        : 'A sign-in window is open for this person. Finish signing in (or close that window), then run again.'
+    )
+  }
+  let ctx: BrowserContext
+  try {
+    ctx = await chromium.launchPersistentContext(userDataDir(p), {
+      headless,
+      executablePath: chromePath(),
+      channel: chromePath() ? undefined : 'chrome',
+      viewport: { width: 1280, height: 860 },
+      locale: 'en-IN',
+      timezoneId: 'Asia/Kolkata'
+    })
+  } catch (e: any) {
+    const msg = String(e?.message ?? e)
+    if (/executable|not found|chrome.*(install|exist)|ENOENT/i.test(msg))
+      throw new SourceNotConfigured('Google Chrome is needed for Naukri / LinkedIn. Install it from google.com/chrome, then try again.')
+    if (/ProcessSingleton|profile.*(in use|locked)|SingletonLock/i.test(msg))
+      throw new BrowserBusy('This person\'s Job Hunter Chrome window is already open. Close it, then try again.')
+    throw e
+  }
+  ctx.on('close', () => open.delete(p.id))
+  open.set(p.id, { ctx, headless })
   return ctx
 }
 
-async function loggedIn(ctx: BrowserContext, site: Site): Promise<boolean> {
+async function hasAuthCookie(ctx: BrowserContext, site: Site): Promise<boolean> {
   const cookies = await ctx.cookies(site === 'naukri' ? 'https://www.naukri.com' : 'https://www.linkedin.com')
-  return cookies.some((c) => AUTH_COOKIE[site].test(c.name))
+  return cookies.some((c) => AUTH_COOKIE[site].test(c.name) && c.value.length > 0)
+}
+
+const ON_LOGIN_PAGE = /\/n?login|checkpoint|authwall|uas\/|challenge|otp|verify/i
+
+/** Signed in = auth cookie present AND the tab has left the login / verification pages. */
+async function signedIn(ctx: BrowserContext, page: Page, site: Site): Promise<boolean> {
+  if (page.isClosed()) return false
+  const host = site === 'naukri' ? /naukri\.com/ : /linkedin\.com/
+  const url = page.url()
+  if (!host.test(url) || ON_LOGIN_PAGE.test(new URL(url).pathname)) return false
+  return hasAuthCookie(ctx, site)
 }
 
 export async function loginStatus(p: Profile): Promise<Record<Site, boolean>> {
@@ -62,54 +91,55 @@ export async function loginStatus(p: Profile): Promise<Record<Site, boolean>> {
   }
 }
 
-/** Opens a visible Chrome window on the site's login page; the person signs in by hand. Resolves when signed in or the window closes. */
+/** Opens a visible Chrome tab on the site's login page; the person signs in by hand. Resolves when signed in, timed out, or the tab/window closes. */
 export async function openLogin(p: Profile, site: Site): Promise<boolean> {
   const ctx = await context(p, false)
-  const page = ctx.pages()[0] ?? (await ctx.newPage())
+  // own tab per site, so signing into LinkedIn never navigates away from a half-finished Naukri login
+  const blank = ctx.pages().find((pg) => pg.url() === 'about:blank')
+  const page = blank ?? (await ctx.newPage())
   await page.goto(LOGIN_URL[site], { waitUntil: 'domcontentloaded' }).catch(() => {})
+  await page.bringToFront().catch(() => {})
   const ok = await new Promise<boolean>((resolve) => {
     const t0 = Date.now()
+    let done = false
+    const finish = (v: boolean): void => {
+      if (done) return
+      done = true
+      clearInterval(tick)
+      resolve(v)
+    }
     const tick = setInterval(async () => {
       try {
-        if (await loggedIn(ctx, site)) {
-          clearInterval(tick)
-          resolve(true)
-        } else if (Date.now() - t0 > 10 * 60_000) {
-          clearInterval(tick)
-          resolve(false)
-        }
+        if (await signedIn(ctx, page, site)) finish(true)
+        else if (Date.now() - t0 > 10 * 60_000) finish(false)
       } catch {
-        clearInterval(tick)
-        resolve(false)
+        if (page.isClosed()) finish(false)
       }
     }, 2000)
-    ctx.on('close', () => {
-      clearInterval(tick)
-      resolve(false)
-    })
+    page.on('close', () => finish(false))
+    ctx.on('close', () => finish(false))
   })
   db.kvSet(`browser_login:${p.id}:${site}`, ok ? '1' : '0')
-  if (ok) {
-    await page.goto(HOME_URL[site], { waitUntil: 'domcontentloaded' }).catch(() => {})
-    await new Promise((r) => setTimeout(r, 1500))
-    await ctx.close().catch(() => {})
-  }
+  if (ok) await sleep(1500) // let the site finish writing its cookies
+  await page.close().catch(() => {})
+  // close the window once no other sign-in tab is still in use
+  if (!ctx.pages().some((pg) => !pg.isClosed() && pg.url() !== 'about:blank')) await ctx.close().catch(() => {})
   return ok
 }
 
 export async function logout(p: Profile, site: Site): Promise<void> {
-  const ctx = await context(p, true)
+  const reuse = open.get(p.id)?.ctx
+  const ctx = reuse ?? (await context(p, true))
   const domain = site === 'naukri' ? 'naukri.com' : 'linkedin.com'
   const keep = (await ctx.cookies()).filter((c) => !c.domain.includes(domain))
   await ctx.clearCookies()
   await ctx.addCookies(keep)
-  await ctx.close()
+  if (!reuse) await ctx.close()
   db.kvSet(`browser_login:${p.id}:${site}`, '0')
 }
 
 // ---------- reading ----------
 
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 function humanDelay(): Promise<void> {
   const b = getSettings().browser
   const min = Math.max(5, b.minDelayS)
@@ -209,14 +239,20 @@ export async function fetchSite(p: Profile, site: Site, log: (s: string) => void
     log(`${site}: daily cap of ${cap} pages already used`)
     return []
   }
-  const ctx = await context(p, !cfg.showWindow)
+  let ctx: BrowserContext
+  try {
+    ctx = await context(p, !cfg.showWindow)
+  } catch (e) {
+    if (e instanceof BrowserBusy) throw new SourceNotConfigured(`${site}: skipped — ${e.message}`)
+    throw e
+  }
   const page = ctx.pages()[0] ?? (await ctx.newPage())
   const titles = p.prefs.target_titles.slice(0, 3)
   const cities = p.prefs.locations.length ? p.prefs.locations : ['India']
   const yrs = Math.round(p.prefs.years_experience || 0)
   const found = new Map<string, Job>()
   try {
-    for (const t of titles) {
+    search: for (const t of titles) {
       for (const city of cities) {
         const url =
           site === 'naukri'
@@ -224,7 +260,7 @@ export async function fetchSite(p: Profile, site: Site, log: (s: string) => void
             : `https://www.linkedin.com/jobs/search/?keywords=${encodeURIComponent(t)}&location=${encodeURIComponent(city + ', India')}&f_TPR=r86400`
         if (!(await visit(page, p, site, url))) {
           log(`${site}: daily page cap reached (${cap})`)
-          break
+          break search
         }
         const rows = site === 'naukri' ? await readNaukri(page) : await readLinkedIn(page)
         log(`${site}: "${t}" / ${city} → ${rows.length} cards`)

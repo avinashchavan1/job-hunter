@@ -126,7 +126,8 @@ export function registerIpc(): void {
     const p = db.getProfile(pid)
     if (!p) throw new Error('profile not found')
     const email = await connectGmail(p)
-    db.updateProfile(pid, { prefs: { ...p.prefs, sources: { ...p.prefs.sources, gmail: true } } })
+    const cur = db.getProfile(pid)!
+    db.updateProfile(pid, { prefs: { ...cur.prefs, sources: { ...cur.prefs.sources, gmail: true } } })
     return email
   })
   h('gmail:disconnect', (pid: number) => {
@@ -149,7 +150,9 @@ export function registerIpc(): void {
   h('browser:login', async (pid: number, site: Site) => {
     const p = db.getProfile(pid)!
     const ok = await openLogin(p, site)
-    if (ok) db.updateProfile(pid, { prefs: { ...p.prefs, sources: { ...p.prefs.sources, [site]: true } } })
+    // re-read: the person may have edited preferences while the sign-in window was open
+    const cur = ok ? db.getProfile(pid) : null
+    if (cur) db.updateProfile(pid, { prefs: { ...cur.prefs, sources: { ...cur.prefs.sources, [site]: true } } })
     return ok
   })
   h('browser:logout', async (pid: number, site: Site) => {
