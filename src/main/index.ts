@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, nativeImage, Notification, shell, Tray } from 'electron'
+import { app, BrowserWindow, Menu, nativeImage, nativeTheme, Notification, shell, Tray } from 'electron'
 import { join } from 'path'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -30,11 +30,15 @@ function createWindow(): void {
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 16, y: 18 },
     // native translucent sidebar on macOS; renderer paints the content area opaque
-    ...(process.platform === 'darwin' ? { vibrancy: 'sidebar' as const, visualEffectState: 'followWindow' as const, backgroundColor: '#00000000' } : { backgroundColor: '#1c1c1e' }),
+    ...(process.platform === 'darwin' ? { vibrancy: 'sidebar' as const, visualEffectState: 'followWindow' as const, backgroundColor: '#00000000' } : { backgroundColor: nativeTheme.shouldUseDarkColors ? '#1c1c1e' : '#f6f6f8' }),
     autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
+    ...(process.platform !== 'darwin' ? { icon } : {}),
     webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: false }
   })
+  if (process.platform !== 'darwin') {
+    win.setMenuBarVisibility(false) // Alt shows it; keeps the Windows look clean
+    nativeTheme.on('updated', () => win?.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#1c1c1e' : '#f6f6f8'))
+  }
   win.on('ready-to-show', () => {
     if (!process.argv.includes('--hidden')) win?.show()
   })

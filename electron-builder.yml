@@ -30,14 +30,26 @@ dmg:
   title: Job Hunter
 win:
   executableName: job-hunter
+  icon: build/icon.ico
+  target:
+    - target: nsis
+      arch: [x64]
+  signAndEditExecutable: true
 nsis:
   artifactName: Job-Hunter-${version}-setup.${ext}
   shortcutName: Job Hunter
   uninstallDisplayName: Job Hunter
   createDesktopShortcut: always
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
 linux:
   target: [AppImage]
   category: Utility
 appImage:
   artifactName: Job-Hunter-${version}.${ext}
 npmRebuild: false
+toolsets:
+  nsis: "1.2.1"
