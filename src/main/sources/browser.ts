@@ -53,7 +53,8 @@ async function context(p: Profile, headless: boolean): Promise<BrowserContext> {
       channel: chromePath() ? undefined : 'chrome',
       viewport: { width: 1280, height: 860 },
       locale: 'en-IN',
-      timezoneId: 'Asia/Kolkata'
+      timezoneId: 'Asia/Kolkata',
+      chromiumSandbox: true // Playwright defaults to --no-sandbox; keep Chrome's sandbox on for real-site browsing
     })
   } catch (e: any) {
     const msg = String(e?.message ?? e)
