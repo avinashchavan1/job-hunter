@@ -355,7 +355,7 @@ function pageScript(): void {
     if (!document.body || document.getElementById('__jh_host')) return
     const host = document.createElement('div')
     host.id = '__jh_host'
-    host.style.cssText = 'position:fixed;right:20px;bottom:20px;z-index:2147483647'
+    host.style.cssText = 'position:fixed;right:24px;bottom:110px;z-index:2147483647' // above the macOS Dock when the window reaches the bottom of the screen
     const root = host.attachShadow({ mode: 'closed' })
     root.innerHTML = `<style>
       *{box-sizing:border-box;font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
