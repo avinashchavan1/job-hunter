@@ -95,8 +95,31 @@ async function importResume(id: number, token?: string): Promise<Profile> {
   // keep the original file name for display
   must(await sb.from('jh_profiles').update({ resume_path: path }).eq('id', id))
   localStorage.setItem(`resumeName:${id}`, file.name)
-  await call('resume.import', { pid: id })
-  return (await getProfile(id))!
+  // Free AI models can be slow; if the connection drops while the server is still working,
+  // watch the profile itself and finish as soon as the new reading lands.
+  const before = JSON.stringify(p.profile)
+  const changed = async (): Promise<Profile | null> => {
+    const now = await getProfile(id)
+    return now && now.profile && JSON.stringify(now.profile) !== before ? now : null
+  }
+  let done = false
+  const watcher = (async (): Promise<Profile> => {
+    for (let i = 0; i < 60 && !done; i++) {
+      await new Promise((r) => setTimeout(r, 5000))
+      const now = await changed().catch(() => null)
+      if (now) return now
+    }
+    throw new Error('Reading the resume is taking too long. Reload the page in a minute to see if it finished.')
+  })()
+  const direct = call('resume.import', { pid: id }).then(
+    async () => (await getProfile(id))!,
+    async (e) => (await changed()) ?? Promise.reject(e)
+  )
+  try {
+    return await Promise.race([direct, watcher])
+  } finally {
+    done = true
+  }
 }
 
 // ---------------------------------------------------------------- settings
