@@ -38,7 +38,8 @@ app.whenReady().then(() => {
       try {
         writeFileSync(env, names.map((k) => `JH_${k}=${String(keys[k]).trim()}`).join('\n') + '\n', { mode: 0o600 })
         console.log(`Copying ${names.length} keys to Supabase as: ${names.map((k) => 'JH_' + k).join(', ')}`)
-        const r = spawnSync('npx', ['-y', 'supabase@latest', 'secrets', 'set', '--env-file', env, `--remote=${PROJECT_REF}`], { stdio: 'inherit' })
+        // run from the empty temp folder so no unrelated supabase/config.toml up the tree gets in the way
+        const r = spawnSync('npx', ['-y', 'supabase@latest', 'secrets', 'set', '--env-file', env, `--remote=${PROJECT_REF}`, '--workdir', dir], { stdio: 'inherit', cwd: dir })
         if (r.status !== 0) throw new Error('supabase secrets set failed (see above)')
         console.log('Done. Reload the website and click "Check again".')
       } finally {
