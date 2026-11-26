@@ -8,6 +8,7 @@ import { getSettings } from './settings'
 import { fetchJobs as apiJobs, SourceNotConfigured } from './sources/jobApi'
 import { fetchGmailJobs } from './sources/gmail'
 import { fetchSite } from './sources/browser'
+import { fetchBoards } from './sources/boards'
 
 import { StopSource } from './sources/errors'
 export { StopSource }
@@ -16,6 +17,7 @@ type Fetcher = (p: Profile, log: (s: string) => void, alert: (a: RunAlert) => vo
 
 const registry: Partial<Record<SourceKey, Fetcher>> = {
   job_api: (p, log) => apiJobs(p, log),
+  careers: (p, log) => fetchBoards(p, log),
   gmail: (p, log) => fetchGmailJobs(p, log),
   naukri: (p, log) => fetchSite(p, 'naukri', log),
   linkedin: (p, log) => fetchSite(p, 'linkedin', log)

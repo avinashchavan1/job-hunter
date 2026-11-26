@@ -76,21 +76,22 @@ export function SettingsPage({ secrets, setSecrets, profile, running }: { secret
 
       {tab === 'sources' && (
         <div>
-          <Section title="Job search API" desc="The main source. Pulls postings from LinkedIn, Naukri, Indeed and company sites through an API that allows it. Free plan is enough.">
-            {s.jobApi.provider === 'jsearch' ? (
-              <KeyField k="RAPIDAPI_KEY" label="RapidAPI key (JSearch)" isSet={secrets.RAPIDAPI_KEY} onSaved={setSecrets} test="job_api"
-                help={<>Sign up at <ExtLink href="https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch">RapidAPI → JSearch</ExtLink>, subscribe to the free Basic plan, copy “X-RapidAPI-Key”.</>} />
-            ) : (
-              <div className="space-y-4">
-                <KeyField k="ADZUNA_APP_ID" label="Adzuna app id" isSet={secrets.ADZUNA_APP_ID} onSaved={setSecrets} help={<>Register at <ExtLink href="https://developer.adzuna.com/signup">developer.adzuna.com</ExtLink>.</>} />
-                <KeyField k="ADZUNA_APP_KEY" label="Adzuna app key" isSet={secrets.ADZUNA_APP_KEY} onSaved={setSecrets} test="job_api" />
+          <Section title="Job search APIs" desc="Add as many as you like — every one with a key runs on each check, and duplicates are merged. All have free plans. Remote jobs from Remotive are included automatically when a profile allows remote.">
+            <div className="space-y-5">
+              <KeyField k="RAPIDAPI_KEY" label="JSearch (RapidAPI) — LinkedIn, Naukri, Indeed and company sites" isSet={secrets.RAPIDAPI_KEY} onSaved={setSecrets} test="job_api"
+                help={<>Sign up at <ExtLink href="https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch">RapidAPI → JSearch</ExtLink>, subscribe to the free Basic plan, copy “X-RapidAPI-Key”. 200 searches a month; Job Hunter spreads them over the month.</>} />
+              <KeyField k="JOOBLE_API_KEY" label="Jooble — large India coverage" isSet={secrets.JOOBLE_API_KEY} onSaved={setSecrets}
+                help={<>Free key from <ExtLink href="https://jooble.org/api/about">jooble.org/api/about</ExtLink> (fill the short form; the key arrives by email).</>} />
+              <div className="grid grid-cols-2 gap-4">
+                <KeyField k="ADZUNA_APP_ID" label="Adzuna app id" isSet={secrets.ADZUNA_APP_ID} onSaved={setSecrets} help={<>Free at <ExtLink href="https://developer.adzuna.com/signup">developer.adzuna.com</ExtLink>.</>} />
+                <KeyField k="ADZUNA_APP_KEY" label="Adzuna app key" isSet={secrets.ADZUNA_APP_KEY} onSaved={setSecrets} />
               </div>
-            )}
+            </div>
           </Section>
           <Section title="Gmail job alerts" desc="One-time setup. Then each person connects their own inbox (read-only) from their Profile.">
             <GmailSetup secrets={secrets} setSecrets={setSecrets} />
           </Section>
-          <p className="text-xs text-ink-400">Naukri and LinkedIn sign-in is per person: Profile → Sources.</p>
+          <p className="text-xs text-ink-400">Per person, in Profile → Sources: companies to watch, Gmail, Naukri and LinkedIn.</p>
         </div>
       )}
 
@@ -99,13 +100,7 @@ export function SettingsPage({ secrets, setSecrets, profile, running }: { secret
           <Section title="Search">
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <label className="label">Job API</label>
-                <select className="field" value={s.jobApi.provider} onChange={(e) => save({ jobApi: { ...s.jobApi, provider: e.target.value as any } })}>
-                  <option value="jsearch">JSearch (RapidAPI)</option><option value="adzuna">Adzuna</option>
-                </select>
-              </div>
-              <div>
-                <label className="label">Searches per person per run</label>
+                <label className="label">Max searches per API per run</label>
                 <input type="number" className="field" value={s.jobApi.maxQueriesPerRun} onChange={(e) => save({ jobApi: { ...s.jobApi, maxQueriesPerRun: Number(e.target.value) } })} />
               </div>
               <div>

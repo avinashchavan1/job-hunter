@@ -8,7 +8,8 @@ import type { Prefs, Profile, SourceKey } from '@shared/types'
 import { Chip, ChipInput, Section, Spinner, Toggle } from '../ui'
 
 const SOURCES: { key: SourceKey; label: string; hint: string }[] = [
-  { key: 'job_api', label: 'Job search API', hint: 'JSearch / Adzuna — aggregates LinkedIn, Naukri, Indeed and company sites' },
+  { key: 'job_api', label: 'Job search APIs', hint: 'JSearch, Jooble, Adzuna (keys in Settings) plus Remotive for remote roles' },
+  { key: 'careers', label: 'Companies to watch', hint: 'Openings that match, straight from company career pages' },
   { key: 'gmail', label: 'Gmail job alerts', hint: 'Reads LinkedIn & Naukri alert emails (connect Gmail first)' },
   { key: 'linkedin', label: 'LinkedIn (browser)', hint: 'Read-only, 5–20 s between pages, max 40 pages/day. Stops on any CAPTCHA.' },
   { key: 'naukri', label: 'Naukri (browser)', hint: 'Read-only, 5–20 s between pages, max 40 pages/day. Stops on any CAPTCHA.' }
@@ -180,6 +181,12 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
               <Toggle checked={prefs.sources[s.key]} onChange={(v) => set('sources', { ...prefs.sources, [s.key]: v })} label={s.label} hint={s.hint} />
               {(s.key === 'naukri' || s.key === 'linkedin') && (
                 <SiteLogin profile={profile} site={s.key} onChange={async () => { const p = await window.api.profiles.get(profile.id); if (p) onChange(p) }} />
+              )}
+              {s.key === 'careers' && (
+                <div className="mt-3 pl-12">
+                  <ChipInput value={prefs.watch_companies ?? []} onChange={(v) => set('watch_companies', v)} placeholder="Paste a careers link, press Enter" />
+                  <p className="mt-1.5 text-[11px] leading-snug text-ink-400">Works with jobs pages on Greenhouse, Lever, Ashby and SmartRecruiters, e.g. jobs.lever.co/company or boards.greenhouse.io/company. Only roles matching the target titles and skills are kept.</p>
+                </div>
               )}
               {s.key === 'gmail' && (
                 <GmailConnect

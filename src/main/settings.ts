@@ -9,7 +9,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   llm: { provider: 'anthropic', baseUrl: '', model: 'auto', fallbackModels: [], concurrency: 1 },
   model: 'claude-opus-5-5',
   effort: 'low',
-  jobApi: { provider: 'jsearch', resultsPerQuery: 20, maxQueriesPerRun: 6, datePosted: 'week' },
+  jobApi: { provider: 'jsearch', resultsPerQuery: 50, maxQueriesPerRun: 12, datePosted: 'week' },
   gmail: { lookbackDays: 3, maxMessages: 60 },
   browser: { pagesPerSitePerDay: 40, minDelayS: 5, maxDelayS: 20, showWindow: false },
   scoring: { maxJobsPerRun: 60 },

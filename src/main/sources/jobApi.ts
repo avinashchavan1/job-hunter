@@ -1,19 +1,23 @@
 // Job-search APIs that allow automated use: JSearch (RapidAPI) or Adzuna.
 import { Job, Profile } from '../../shared/types'
-import { kvGet, kvSet, makeJob } from '../db'
+import { kvGet, kvSet, listProfiles, makeJob } from '../db'
+import { fetchRemotive, jooble } from './boards'
 import { getSettings, secret } from '../settings'
 
 import { SourceNotConfigured } from './errors'
 export { SourceNotConfigured }
 
-function queries(p: Profile, max: number): { title: string; location: string }[] {
+function queries(p: Profile, max: number, offset = 0): { title: string; location: string }[] {
   const titles = p.prefs.target_titles.length ? p.prefs.target_titles : p.profile?.suggested_search_titles ?? []
   const locs = p.prefs.locations.length ? p.prefs.locations : ['India']
   const out: { title: string; location: string }[] = []
   // interleave so a small cap still covers every city with the top titles
   for (const t of titles) for (const l of locs) out.push({ title: t, location: l })
   if (p.prefs.remote_ok && titles[0]) out.splice(locs.length, 0, { title: titles[0], location: 'Remote' })
-  return out.slice(0, max)
+  if (!out.length) return []
+  // rotate: each run starts where the last one stopped, so over a few days every title × city is searched
+  const start = offset % out.length
+  return [...out.slice(start), ...out.slice(0, start)].slice(0, Math.min(max, out.length))
 }
 
 function lpa(min?: number | null, max?: number | null, currency?: string, period?: string): string {
@@ -117,14 +121,63 @@ async function adzuna(q: { title: string; location: string }): Promise<Job[]> {
   )
 }
 
+/** JSearch free plan is a monthly quota: spread what is left over the runs left this month. */
+function jsearchBudget(cap: number): { n: number; why: string } {
+  const month = new Date().toISOString().slice(0, 7)
+  const limit = Number(kvGet('jsearch_limit')) || 200
+  const used = Number(kvGet(`quota:jsearch:${month}`) || 0)
+  const reported = kvGet('jsearch_remaining')
+  const remaining = Math.max(0, reported != null ? Math.min(Number(reported), limit - used) : limit - used)
+  const st = getSettings().schedule
+  const d = new Date()
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+  let runs = 0
+  for (let day = d.getDate(); day <= last; day++) {
+    const wd = new Date(d.getFullYear(), d.getMonth(), day).getDay()
+    if (!st.weekdaysOnly || (wd !== 0 && wd !== 6)) runs++
+  }
+  const people = Math.max(1, listProfiles(true).filter((p) => p.prefs.sources.job_api).length)
+  const fair = Math.floor(remaining / Math.max(1, runs * people))
+  const n = Math.max(remaining > 0 ? 1 : 0, Math.min(cap, fair))
+  return { n, why: `${remaining} of ${limit} left this month, ~${runs} runs to go` }
+}
+
 export async function fetchJobs(p: Profile, log: (s: string) => void): Promise<Job[]> {
   const s = getSettings().jobApi
-  const fn = s.provider === 'adzuna' ? adzuna : jsearch
   const all: Job[] = []
-  for (const q of queries(p, s.maxQueriesPerRun)) {
-    const got = await fn(q)
-    log(`${s.provider}: "${q.title}" / ${q.location} → ${got.length}`)
-    all.push(...got)
+  const used: string[] = []
+  const run = async (name: string, fn: (q: { title: string; location: string }) => Promise<Job[]>, n: number): Promise<void> => {
+    used.push(name)
+    const ck = `qcursor:${name}:${p.id}`
+    const offset = Number(kvGet(ck) || 0)
+    kvSet(ck, String(offset + n))
+    for (const q of queries(p, n, offset)) {
+      try {
+        const got = await fn(q)
+        log(`${name}: "${q.title}" / ${q.location} → ${got.length}`)
+        all.push(...got)
+      } catch (e: any) {
+        if (e instanceof SourceNotConfigured) throw e
+        log(`${name}: "${q.title}" / ${q.location} failed — ${e?.message ?? e}`)
+        if (/429|quota/i.test(String(e?.message))) break
+      }
+    }
   }
+  // every API that has a key runs; duplicates collapse later (same title + company + city)
+  if (secret('RAPIDAPI_KEY')) {
+    const b = jsearchBudget(s.maxQueriesPerRun)
+    log(`jsearch: ${b.n} searches this run (${b.why})`)
+    if (b.n > 0) await run('jsearch', jsearch, b.n)
+  }
+  if (secret('ADZUNA_APP_ID') && secret('ADZUNA_APP_KEY')) await run('adzuna', adzuna, s.maxQueriesPerRun)
+  if (secret('JOOBLE_API_KEY')) await run('jooble', jooble, s.maxQueriesPerRun)
+  try {
+    const r = await fetchRemotive(p, log)
+    if (r.length) used.push('remotive')
+    all.push(...r)
+  } catch (e: any) {
+    log(`remotive failed — ${e?.message ?? e}`)
+  }
+  if (!used.length) throw new SourceNotConfigured('No job search API key yet. Add a free JSearch, Adzuna or Jooble key in Settings → Job sources.')
   return all
 }

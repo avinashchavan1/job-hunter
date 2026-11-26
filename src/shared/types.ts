@@ -1,6 +1,6 @@
 // Types shared by main, preload and renderer.
 
-export type SourceKey = 'job_api' | 'gmail' | 'linkedin' | 'naukri'
+export type SourceKey = 'job_api' | 'careers' | 'gmail' | 'linkedin' | 'naukri'
 export type Status = 'new' | 'shortlisted' | 'applied' | 'interview' | 'offer' | 'rejected' | 'skipped'
 export const STATUSES: Status[] = ['new', 'shortlisted', 'applied', 'interview', 'offer', 'rejected', 'skipped']
 
@@ -63,6 +63,8 @@ export interface Prefs {
   sources: Record<SourceKey, boolean>
   answers: { label: string; value: string }[]
   contact: Contact
+  /** Company career-board links to check every run (Greenhouse, Lever, Ashby, SmartRecruiters). */
+  watch_companies: string[]
 }
 
 export const DEFAULT_PREFS: Prefs = {
@@ -78,7 +80,7 @@ export const DEFAULT_PREFS: Prefs = {
   exclude_companies: [],
   exclude_keywords: [],
   min_score: 50,
-  sources: { job_api: true, gmail: false, linkedin: false, naukri: false },
+  sources: { job_api: true, careers: true, gmail: false, linkedin: false, naukri: false },
   answers: [
     { label: 'Notice period', value: '' },
     { label: 'Current CTC', value: '' },
@@ -87,7 +89,8 @@ export const DEFAULT_PREFS: Prefs = {
     { label: 'Preferred locations', value: '' },
     { label: 'Why are you looking for a change?', value: '' }
   ],
-  contact: EMPTY_CONTACT
+  contact: EMPTY_CONTACT,
+  watch_companies: []
 }
 
 export interface Profile {
@@ -168,6 +171,7 @@ export const SECRET_KEYS = [
   'RAPIDAPI_KEY',
   'ADZUNA_APP_ID',
   'ADZUNA_APP_KEY',
+  'JOOBLE_API_KEY',
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET'
 ] as const
