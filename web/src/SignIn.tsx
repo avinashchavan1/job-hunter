@@ -16,7 +16,7 @@ export function SignIn(): ReactNode {
   const google = async (): Promise<void> => {
     setErr('')
     setBusy(true)
-    const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin } })
+    const { error } = await sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${location.origin}/app/` } })
     if (error) {
       setErr(/provider is not enabled/i.test(error.message) ? 'Google sign-in isn’t switched on yet — use email and password for now.' : cleanErr(error))
       setBusy(false)

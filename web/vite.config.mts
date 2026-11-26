@@ -15,6 +15,11 @@ export default defineConfig({
     }
   },
   plugins: [react(), tailwindcss()],
-  build: { outDir: resolve(import.meta.dirname, 'dist'), emptyOutDir: true },
+  build: {
+    outDir: resolve(import.meta.dirname, 'dist'),
+    emptyOutDir: true,
+    // public landing page at /, the private app at /app
+    rollupOptions: { input: { home: resolve(import.meta.dirname, 'index.html'), app: resolve(import.meta.dirname, 'app/index.html') } }
+  },
   server: { port: 5199 }
 })

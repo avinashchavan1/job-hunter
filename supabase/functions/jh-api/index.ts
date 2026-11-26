@@ -971,10 +971,10 @@ async function gmailConnectUrl(pid, origin) {
 async function gmailCallback(url) {
   const nonce = url.searchParams.get("state") || "";
   const raw = nonce ? await getSecretRow(`gmailstate:${nonce}`) : null;
-  if (!raw) return "https://job.avinashchavan.com/?gmail=error&why=expired";
+  if (!raw) return "https://job.avinashchavan.com/app/?gmail=error&why=expired";
   await putSecretRow(`gmailstate:${nonce}`, null);
   const st = JSON.parse(raw);
-  const back = (q) => `${st.origin}/?${q}`;
+  const back = (q) => `${st.origin}/app/?${q}`;
   if (Date.now() > st.exp) return back("gmail=error&why=expired");
   const err = url.searchParams.get("error");
   if (err) return back(`gmail=error&why=${encodeURIComponent(err)}`);

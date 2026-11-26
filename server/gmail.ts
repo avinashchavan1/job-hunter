@@ -48,10 +48,10 @@ export async function gmailConnectUrl(pid: number, origin: string): Promise<stri
 export async function gmailCallback(url: URL): Promise<string> {
   const nonce = url.searchParams.get('state') || ''
   const raw = nonce ? await getSecretRow(`gmailstate:${nonce}`) : null
-  if (!raw) return 'https://job.avinashchavan.com/?gmail=error&why=expired'
+  if (!raw) return 'https://job.avinashchavan.com/app/?gmail=error&why=expired'
   await putSecretRow(`gmailstate:${nonce}`, null)
   const st = JSON.parse(raw) as { pid: number; origin: string; exp: number }
-  const back = (q: string): string => `${st.origin}/?${q}`
+  const back = (q: string): string => `${st.origin}/app/?${q}`
   if (Date.now() > st.exp) return back('gmail=error&why=expired')
   const err = url.searchParams.get('error')
   if (err) return back(`gmail=error&why=${encodeURIComponent(err)}`)

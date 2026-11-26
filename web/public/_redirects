@@ -1,1 +1,4 @@
-/*  /index.html  200
+# private app (single-page) lives under /app
+/app/*  /app/index.html  200
+# anything else unknown -> home
+/*      /index.html      404

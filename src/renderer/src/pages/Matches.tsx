@@ -1,7 +1,7 @@
 // "Today": the one screen people use every day. Best unreviewed jobs first; open one to see why it
 // fits, get a tailored resume / cover note / interview prep, and Apply (opens with Fill form).
 import { ReactNode, useEffect, useMemo, useState } from 'react'
-import { Check, ChevronRight, EyeOff, ExternalLink, Play, RefreshCw, Search, Star, Undo2, X } from 'lucide-react'
+import { Check, CheckCircle2, ChevronRight, EyeOff, ExternalLink, Play, RefreshCw, Search, Star, Undo2, X } from 'lucide-react'
 import type { Match, Prefs, Profile, ProfileStats, Status } from '@shared/types'
 import { checkTrust, Trust } from '@shared/trust'
 import { checks } from '@shared/filters'
@@ -10,7 +10,7 @@ import { InterviewPrep, TailoredResume } from '../components/Assist'
 import { CopyButton, ScoreRing, Spinner, cx, timeAgo } from '../ui'
 import { RunLog } from '../components/RunLog'
 
-type View = 'review' | 'shortlisted' | 'all' | 'hidden'
+type View = 'review' | 'shortlisted' | 'applied' | 'all' | 'hidden'
 const DONE: Status[] = ['applied', 'interview', 'offer', 'rejected', 'skipped']
 const clean = (e: any): string => String(e?.message ?? e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
 
@@ -58,6 +58,7 @@ export function Matches({ profile, running, onRun }: { profile: Profile; running
     return {
       review,
       shortlisted: rows.filter((r) => r.status === 'shortlisted'),
+      applied: rows.filter((r) => r.status === 'applied' || r.status === 'interview' || r.status === 'offer'),
       all: rows,
       hidden: [...rows.filter((r) => r.status === 'skipped' || r.status === 'rejected'), ...filtered]
     }
@@ -78,6 +79,7 @@ export function Matches({ profile, running, onRun }: { profile: Profile; running
   const views: { key: View; label: string }[] = [
     { key: 'review', label: 'To review' },
     { key: 'shortlisted', label: 'Shortlisted' },
+    { key: 'applied', label: 'Applied' },
     { key: 'all', label: 'All' },
     { key: 'hidden', label: 'Hidden' }
   ]
@@ -144,7 +146,7 @@ function Empty({ view, hasAny, onRun, running, min }: { view: View; hasAny: bool
     ? 'No jobs yet. Check for jobs to pull fresh postings and score them against the resume.'
     : view === 'review'
       ? `You're through everything scoring ${min} or more. New jobs show up here after the next check.`
-      : view === 'shortlisted' ? 'Star a job to keep it here.' : 'Nothing here.'
+      : view === 'shortlisted' ? 'Star a job to keep it here.' : view === 'applied' ? 'Jobs you mark as applied show up here.' : 'Nothing here.'
   return (
     <div className="py-16 text-center">
       <p className="mx-auto max-w-sm text-sm text-ink-400">{text}</p>
@@ -181,18 +183,21 @@ function JobRow({ m, trust, profile, open, onToggle, onStatus, onRescored }: {
   m: Match; trust: Trust; profile: Profile; open: boolean; onToggle: () => void; onStatus: (s: Status) => void; onRescored: (m: Match) => void
 }): ReactNode {
   const [opening, setOpening] = useState(false)
+  const [askApplied, setAskApplied] = useState(false)
   const [err, setErr] = useState('')
   const apply = async (): Promise<void> => {
     setErr('')
     setOpening(true)
     try {
       await window.api.autofill.open(profile.id, m.id)
+      if (m.status !== 'applied') setAskApplied(true) // when they come back: "did you apply?"
     } catch (e) {
       setErr(clean(e))
     }
     setTimeout(() => setOpening(false), 1500)
   }
   const starred = m.status === 'shortlisted'
+  const applied = m.status === 'applied' || m.status === 'interview' || m.status === 'offer'
   const hidden = m.status === 'skipped' || m.status === 'rejected' || !!m.filter_reason
   const meta = [m.company, m.location, m.salary, m.posted_at ? timeAgo(m.posted_at) : `found ${timeAgo(m.found_at)}`].filter(Boolean)
 
@@ -203,7 +208,7 @@ function JobRow({ m, trust, profile, open, onToggle, onStatus, onRescored }: {
         <button className="min-w-0 flex-1 text-left" onClick={onToggle}>
           <div className="flex items-center gap-2">
             <span className="truncate text-[14px] font-medium">{m.title}</span>
-            {m.status === 'applied' && <span className="text-xs text-emerald-700 dark:text-emerald-400">Applied</span>}
+            {applied && <span className="text-xs text-emerald-700 dark:text-emerald-400">{m.status === 'applied' ? 'Applied' : m.status === 'interview' ? 'Interview' : 'Offer'}{m.status_at ? ` ${timeAgo(m.status_at)}` : ''}</span>}
             <TrustTag t={trust} />
           </div>
           <div className="mt-0.5 truncate text-xs text-ink-400">{meta.join(' · ')}</div>
@@ -214,12 +219,17 @@ function JobRow({ m, trust, profile, open, onToggle, onStatus, onRescored }: {
             title={starred ? 'Remove from shortlist' : 'Shortlist'} onClick={() => onStatus(starred ? 'new' : 'shortlisted')}>
             <Star size={15} fill={starred ? 'currentColor' : 'none'} />
           </button>
+          <button className={cx('rounded-md p-1.5 hover:bg-hover', applied ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-400 hover:text-ink-100 opacity-0 group-hover:opacity-100', open && 'opacity-100')}
+            title={applied ? 'Applied — click to undo' : 'Mark as applied'} aria-label={applied ? 'Undo applied' : 'Mark as applied'}
+            onClick={() => { setAskApplied(false); onStatus(applied ? 'new' : 'applied') }}>
+            <CheckCircle2 size={15} />
+          </button>
           <button className={cx('rounded-md p-1.5 text-ink-400 hover:bg-hover hover:text-ink-100', !open && 'opacity-0 group-hover:opacity-100')}
             title={hidden ? 'Bring back' : 'Hide — not interested'} onClick={() => onStatus(hidden ? 'new' : 'skipped')}>
             {hidden ? <Undo2 size={15} /> : <EyeOff size={15} />}
           </button>
           {m.url && (
-            <button className="btn btn-outline ml-1 !py-1" onClick={apply} disabled={opening} title="Opens the posting in Job Hunter's Chrome window, with a Fill form button for the application">
+            <button className="btn btn-outline ml-1 !py-1" onClick={apply} disabled={opening} title={window.api.isWeb ? 'Opens the posting in a new tab' : "Opens the posting in Job Hunter's Chrome window, with a Fill form button for the application"}>
               {opening ? <Spinner size={13} /> : null} Apply
             </button>
           )}
@@ -228,6 +238,13 @@ function JobRow({ m, trust, profile, open, onToggle, onStatus, onRescored }: {
           </button>
         </div>
       </div>
+      {askApplied && !applied && (
+        <div className="-mt-1 flex items-center gap-2 pb-3 pl-16 text-xs text-ink-300">
+          Did you apply?
+          <button className="btn btn-outline !px-2 !py-0.5 text-xs" onClick={() => { setAskApplied(false); onStatus('applied') }}><Check size={12} /> Yes, applied</button>
+          <button className="btn btn-ghost !px-2 !py-0.5 text-xs" onClick={() => setAskApplied(false)}>Not yet</button>
+        </div>
+      )}
       {err && <p className="-mt-1 pb-2 pl-16 text-xs text-rose-700 dark:text-rose-300">{err}</p>}
       {open && <JobDetail m={m} trust={trust} profile={profile} onStatus={onStatus} onRescored={onRescored} />}
     </li>

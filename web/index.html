@@ -3,16 +3,139 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="robots" content="noindex, nofollow" />
-    <title>Job Hunter</title>
+    <title>Job Hunter — finds, ranks and tracks jobs that fit your resume</title>
+    <meta name="description" content="Job Hunter checks job boards, company career pages and your LinkedIn and Naukri alert emails every morning, scores each job against your resume, and flags what doesn't fit." />
+    <link rel="canonical" href="https://job.avinashchavan.com/" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#1d1d1f" />
     <link rel="icon" type="image/png" href="/logo.png" />
-    <meta
-      http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.googleusercontent.com; connect-src 'self' https://vrhcofbhrcqthbacixpb.supabase.co wss://vrhcofbhrcqthbacixpb.supabase.co"
-    />
+    <link rel="apple-touch-icon" href="/icon.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Job Hunter" />
+    <meta property="og:url" content="https://job.avinashchavan.com/" />
+    <meta property="og:title" content="Job Hunter — finds, ranks and tracks jobs that fit your resume" />
+    <meta property="og:description" content="Every morning: new jobs from job boards, company career pages and alert emails, each scored against your resume with clear green and red flags." />
+    <meta property="og:image" content="https://job.avinashchavan.com/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Job Hunter: a list of jobs with match scores and green and red flags" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Job Hunter — finds, ranks and tracks jobs that fit your resume" />
+    <meta name="twitter:description" content="New jobs every morning, scored against your resume, with clear green and red flags." />
+    <meta name="twitter:image" content="https://job.avinashchavan.com/og.png" />
+
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebApplication",
+            "name": "Job Hunter",
+            "url": "https://job.avinashchavan.com/",
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "Web",
+            "description": "Finds new jobs every morning from job boards, company career pages and LinkedIn / Naukri alert emails, scores each one against your resume, and tracks your applications.",
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "INR" },
+            "author": { "@type": "Person", "name": "Avinash Chavan" }
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              { "@type": "Question", "name": "Where does Job Hunter look for jobs?", "acceptedAnswer": { "@type": "Answer", "text": "Job search APIs that collect listings from LinkedIn, Naukri, Indeed and company sites (JSearch, Jooble, Adzuna), remote boards such as Remotive, the career pages of companies you choose to watch (Greenhouse, Lever, Ashby, SmartRecruiters), and the LinkedIn and Naukri job-alert emails in your own Gmail." } },
+              { "@type": "Question", "name": "Does it apply to jobs for me?", "acceptedAnswer": { "@type": "Answer", "text": "No. It finds, ranks and explains jobs and writes a cover note you can use. You open the posting and apply yourself." } },
+              { "@type": "Question", "name": "Does it hide jobs that don't match?", "acceptedAnswer": { "@type": "Answer", "text": "No. Every job stays visible. City, experience, salary and words you want to avoid are shown as green, amber or red flags so you decide." } },
+              { "@type": "Question", "name": "Who can use it?", "acceptedAnswer": { "@type": "Answer", "text": "It is invite-only. An admin adds your email, then you sign in with Google or with an email and password." } }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/src/home.css" />
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <header class="wrap top">
+      <a class="brand" href="/" aria-label="Job Hunter home"><img src="/logo.png" alt="" width="28" height="28" /> Job Hunter</a>
+      <a class="btn ghost" href="/app">Sign in</a>
+    </header>
+
+    <main>
+      <section class="wrap hero">
+        <h1>New jobs every morning, ranked against your resume.</h1>
+        <p class="lead">Job Hunter checks job boards, company career pages and your job-alert emails, scores each posting against your resume, and tells you plainly what fits and what doesn't. You decide what to apply for.</p>
+        <div class="cta">
+          <a class="btn primary" href="/app">Open Job Hunter</a>
+          <span class="note">Invite only — ask the admin to add your email.</span>
+        </div>
+
+        <figure class="mock" aria-label="Example of the Today list">
+          <div class="row">
+            <div class="score good">86</div>
+            <div class="body">
+              <div class="title">SAP EWM Functional Consultant <span class="tag ok">Company site</span></div>
+              <div class="meta">Example Logistics · Hyderabad · 2d ago</div>
+              <div class="flags"><span class="f g">✓ Secunderabad, Telangana</span><span class="f g">✓ 5–8 yrs</span><span class="f n">? Salary not listed</span></div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="score mid">71</div>
+            <div class="body">
+              <div class="title">S/4HANA Warehouse Lead <span class="tag warn">Reposted</span></div>
+              <div class="meta">Example Retail · Chennai · 5d ago</div>
+              <div class="flags"><span class="f a">~ Chennai · South India</span><span class="f g">✓ 4+ yrs</span><span class="f r">✗ Mentions “night shift”</span></div>
+            </div>
+          </div>
+          <div class="row">
+            <div class="score low">38</div>
+            <div class="body">
+              <div class="title">SAP Basis Administrator</div>
+              <div class="meta">Example Services · Pune · 1w ago</div>
+              <div class="flags"><span class="f r">✗ Pune</span><span class="f r">✗ 12+ yrs</span></div>
+            </div>
+          </div>
+        </figure>
+      </section>
+
+      <section class="wrap">
+        <h2>How it works</h2>
+        <ol class="steps">
+          <li><b>Add a resume.</b> It reads your titles, skills and experience once and suggests what to search for.</li>
+          <li><b>It checks every morning.</b> New postings from every source are collected and duplicates merged.</li>
+          <li><b>You review a short list.</b> Each job has a match score, the reasons, the gaps, and a cover note ready to paste.</li>
+        </ol>
+      </section>
+
+      <section class="wrap">
+        <h2>What you get</h2>
+        <div class="grid">
+          <div><h3>Match score with reasons</h3><p>A 0–100 score for every job, why it fits, what to watch out for, and which of the posting's skills you have or lack.</p></div>
+          <div><h3>Flags, not filters</h3><p>City, experience, salary and words you want to avoid show as green, amber or red. Nothing is hidden — Secunderabad counts as Hyderabad, Chennai shows as “South India”.</p></div>
+          <div><h3>More places searched</h3><p>Job search APIs covering LinkedIn, Naukri, Indeed and company sites, remote boards, the career pages of companies you watch, and LinkedIn and Naukri alert emails from your Gmail.</p></div>
+          <div><h3>Repost and scam check</h3><p>Copies on aggregator sites are marked, with a link to find the original on the company's own careers page.</p></div>
+          <div><h3>Cover notes</h3><p>A short note for each job, written from your real experience — no invented facts, no placeholders.</p></div>
+          <div><h3>Application tracker</h3><p>Shortlist, applied, interview, offer: one board for every application, with notes.</p></div>
+        </div>
+      </section>
+
+      <section class="wrap">
+        <h2>Questions</h2>
+        <dl class="faq">
+          <dt>Does it apply for me?</dt>
+          <dd>No. It finds, ranks and explains jobs. You open the posting and apply yourself.</dd>
+          <dt>What does it read in my Gmail?</dt>
+          <dd>Only job-alert emails from job sites (LinkedIn, Naukri, Indeed and similar), with read-only access you can remove at any time.</dd>
+          <dt>Who can see my data?</dt>
+          <dd>Only people the admin has invited. Keys for job sites and the AI stay on the server and never reach the browser.</dd>
+          <dt>Who can use it?</dt>
+          <dd>It's invite-only. Once your email is added, sign in with Google or with an email and password.</dd>
+        </dl>
+      </section>
+    </main>
+
+    <footer class="wrap foot">
+      <span>Job Hunter · built by <a href="https://avinashchavan.com">Avinash Chavan</a></span>
+      <a href="/app">Sign in</a>
+    </footer>
   </body>
 </html>
