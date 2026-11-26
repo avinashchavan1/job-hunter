@@ -1,0 +1,8 @@
+@import "../../src/renderer/src/assets/main.css";
+@source "../../src/renderer/src";
+@source "./";
+
+/* Website tweaks on top of the desktop look */
+body { background: var(--bg); cursor: auto; }
+button, a { cursor: pointer; }
+button:disabled { cursor: default; }
