@@ -130,15 +130,32 @@ export async function fetchRemotive(p: Profile, log: (s: string) => void): Promi
 
 // ---------------------------------------------------------------- Jooble
 
-export async function jooble(q: { title: string; location: string }): Promise<Job[]> {
-  const key = secret('JOOBLE_API_KEY')
-  if (!key) return []
+const JOOBLE_CITY: Record<string, string> = { bangalore: 'Bengaluru', bengaluru: 'Bengaluru', gurgaon: 'Gurugram', bombay: 'Mumbai', calcutta: 'Kolkata', madras: 'Chennai' }
+
+async function joobleOnce(key: string, keywords: string, location: string): Promise<any[]> {
   const body = await getJson(`https://jooble.org/api/${encodeURIComponent(key)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ keywords: q.title, location: q.location === 'Remote' ? 'Remote' : `${q.location}, India`, page: '1' })
+    body: JSON.stringify({ keywords, location, page: '1' })
   })
-  return (body.jobs ?? []).map((d: any) =>
+  return body.jobs ?? []
+}
+
+export async function jooble(q: { title: string; location: string }): Promise<Job[]> {
+  const key = secret('JOOBLE_API_KEY')
+  if (!key) return []
+  let rows: any[]
+  if (q.location === 'Remote') rows = await joobleOnce(key, `${q.title} remote`, 'India')
+  else {
+    const city = JOOBLE_CITY[q.location.toLowerCase()] ?? q.location
+    rows = await joobleOnce(key, q.title, city)
+    // Jooble matches keywords strictly; retry once with the core words if nothing came back
+    if (!rows.length) {
+      const core = q.title.replace(/\b(senior|junior|lead|functional|consultant|specialist|analyst)\b/gi, ' ').replace(/\s+/g, ' ').trim()
+      if (core && core !== q.title) rows = await joobleOnce(key, core, city)
+    }
+  }
+  return rows.map((d: any) =>
     makeJob({ title: strip(d.title || ''), company: d.company || '', location: d.location || '', salary: d.salary || '', url: d.link || '', description: strip(d.snippet || ''), source: `jooble${d.source ? ':' + String(d.source).toLowerCase() : ''}`, posted_at: (d.updated || '').slice(0, 10), external_id: String(d.id || '') })
   )
 }
