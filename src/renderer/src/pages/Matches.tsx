@@ -263,7 +263,6 @@ function JobDetail({ m, trust, profile, onStatus, onRescored }: { m: Match; trus
   return (
     <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8 border-t border-line pb-5 pt-4">
       <div className="space-y-4 text-sm">
-        {m.filter_reason && <p className="text-xs text-rose-700 dark:text-rose-300">On your skip list: {m.filter_reason.replace(/^excluded (company|keyword): /, '')}</p>}
         {trust.level !== 'direct' && trust.level !== 'ok' && (
           <div className={cx('border-l-2 pl-3', trust.level === 'risky' ? 'border-rose-500' : 'border-amber-500')}>
             <div className="font-medium">{trust.label}</div>

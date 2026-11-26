@@ -173,13 +173,7 @@ async function secretStatus() {
 import { createHash } from "node:crypto";
 
 // src/shared/filters.ts
-var esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-var has = (text, phrase) => new RegExp(`\\b${esc(phrase.toLowerCase())}\\b`).test(text);
-function check(job, prefs) {
-  const company = job.company.toLowerCase();
-  const blob = [job.title, company, job.location, job.description].join(" ").toLowerCase();
-  for (const c of prefs.exclude_companies) if (c && company.includes(c.toLowerCase())) return `excluded company: ${c}`;
-  for (const k of prefs.exclude_keywords) if (k && has(blob, k)) return `excluded keyword: ${k}`;
+function check(_job, _prefs) {
   return null;
 }
 

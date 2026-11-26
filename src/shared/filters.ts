@@ -96,13 +96,9 @@ export function checks(job: Job, prefs: Prefs): Check[] {
 }
 
 /**
- * Jobs are no longer hidden for city, experience or salary — those show as red checks instead.
- * Only companies and words the person put on their own skip lists are set aside.
+ * Nothing is ever hidden automatically. City, experience, salary and skip-list words/companies
+ * all show as flags (see checks()); the person decides. Kept so callers need no change.
  */
-export function check(job: Job, prefs: Prefs): string | null {
-  const company = job.company.toLowerCase()
-  const blob = [job.title, company, job.location, job.description].join(' ').toLowerCase()
-  for (const c of prefs.exclude_companies) if (c && company.includes(c.toLowerCase())) return `excluded company: ${c}`
-  for (const k of prefs.exclude_keywords) if (k && has(blob, k)) return `excluded keyword: ${k}`
+export function check(_job: Job, _prefs: Prefs): string | null {
   return null
 }
