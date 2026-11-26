@@ -177,6 +177,556 @@ async function secretStatus() {
   return Object.fromEntries(SECRET_KEYS.map((k) => [k, !!(s[k] ?? "").trim()]));
 }
 
+// server/store.ts
+import { createHash } from "node:crypto";
+
+// src/shared/filters.ts
+var esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+var has = (text, phrase) => new RegExp(`\\b${esc(phrase.toLowerCase())}\\b`).test(text);
+function yearsRequired(text) {
+  let m = text.match(/(\d{1,2})\s*(?:-|to|–)\s*(\d{1,2})\s*\+?\s*(?:years|yrs)/);
+  if (m) return [Number(m[1]), Number(m[2])];
+  m = text.match(/(?:minimum|min\.?|at least)\s*(?:of\s*)?(\d{1,2})\s*\+?\s*(?:years|yrs)/) || text.match(/(\d{1,2})\s*\+\s*(?:years|yrs)/);
+  if (m) return [Number(m[1]), Number(m[1])];
+  return null;
+}
+function salaryLpa(s) {
+  const t = (s || "").toLowerCase().replace(/,/g, "");
+  let m = t.match(/(\d+(?:\.\d+)?)\s*(?:-|to)\s*(\d+(?:\.\d+)?)\s*(?:lpa|lacs?|lakhs?)/);
+  if (m) return Number(m[2]);
+  m = t.match(/(\d+(?:\.\d+)?)\s*(?:lpa|lacs?|lakhs?)/);
+  if (m) return Number(m[1]);
+  m = t.match(/(?:₹|inr|rs\.?)\s*(\d{5,8})/);
+  if (m) return Number(m[1]) / 1e5;
+  return null;
+}
+function check(job, prefs) {
+  const title = job.title.toLowerCase();
+  const company = job.company.toLowerCase();
+  const loc = (job.location || "").toLowerCase();
+  const blob = [title, company, loc, (job.description || "").toLowerCase()].join(" ");
+  for (const c of prefs.exclude_companies) if (c && company.includes(c.toLowerCase())) return `excluded company: ${c}`;
+  for (const k of prefs.exclude_keywords) if (k && has(blob, k)) return `excluded keyword: ${k}`;
+  const yrs = yearsRequired(blob);
+  if (yrs && yrs[0] > prefs.years_max) return `needs ${yrs[0]}+ yrs (max ${prefs.years_max})`;
+  if (prefs.drop_below_min_salary && prefs.min_salary_lpa) {
+    const lpa2 = salaryLpa(job.salary);
+    if (lpa2 == null && !prefs.keep_unknown_salary) return "salary not listed";
+    if (lpa2 != null && lpa2 < prefs.min_salary_lpa) return `salary ${lpa2} LPA < ${prefs.min_salary_lpa}`;
+  }
+  const locs = prefs.locations.map((l) => l.toLowerCase()).filter(Boolean);
+  if (locs.length && loc) {
+    const aliases = { bangalore: ["bengaluru"], bengaluru: ["bangalore"], gurgaon: ["gurugram"], gurugram: ["gurgaon"] };
+    const want = locs.flatMap((l) => [l, ...aliases[l] || []]);
+    const remote = /remote|work from home|wfh|anywhere/.test(loc + " " + title);
+    const pan = /^india$|pan india|multiple locations|across india/.test(loc.trim());
+    if (!want.some((l) => loc.includes(l)) && !(remote && prefs.remote_ok) && !pan) return `location: ${job.location}`;
+  }
+  return null;
+}
+
+// server/store.ts
+var must = (r, what) => {
+  if (r.error) throw new Error(`${what}: ${r.error.message}`);
+  return r.data;
+};
+var norm = (s) => (s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+var CITY_ALIAS = {
+  bengaluru: "bangalore",
+  gurugram: "gurgaon",
+  bombay: "mumbai",
+  "new delhi": "delhi",
+  madras: "chennai",
+  calcutta: "kolkata",
+  "navi mumbai": "mumbai",
+  secunderabad: "hyderabad",
+  noida: "noida",
+  poona: "pune"
+};
+function city(location) {
+  const n = norm(location);
+  for (const [k, v] of Object.entries(CITY_ALIAS)) if (n === k || n.startsWith(k + " ")) return v;
+  return n.split(" ")[0] || "";
+}
+var jobId = (j) => createHash("sha1").update(`${norm(j.title)}|${norm(j.company)}|${city(j.location)}`).digest("hex").slice(0, 16);
+function makeJob(p) {
+  const j = {
+    id: "",
+    title: (p.title || "").trim(),
+    company: (p.company || "").trim(),
+    location: (p.location || "").trim(),
+    salary: (p.salary || "").trim(),
+    url: p.url || "",
+    description: p.description || "",
+    source: p.source || "",
+    posted_at: p.posted_at || "",
+    external_id: p.external_id || ""
+  };
+  j.id = p.id || jobId(j);
+  return j;
+}
+async function kvGet(k) {
+  const r = must(await admin().from("jh_kv").select("v").eq("k", k).maybeSingle(), "kv");
+  return r ? String(r.v) : null;
+}
+async function kvSet(k, v) {
+  must(await admin().from("jh_kv").upsert({ k, v }), "kv");
+}
+function mergePrefs(saved) {
+  const s = saved ?? {};
+  return { ...DEFAULT_PREFS, ...s, sources: { ...DEFAULT_PREFS.sources, ...s.sources || {} }, contact: { ...DEFAULT_PREFS.contact, ...s.contact || {} } };
+}
+var toProfile = (r) => ({
+  id: Number(r.id),
+  slug: r.slug,
+  name: r.name,
+  resume_path: r.resume_path,
+  profile: r.profile ?? null,
+  prefs: mergePrefs(r.prefs),
+  active: !!r.active,
+  created_at: r.created_at,
+  gmail_email: r.gmail_email
+});
+async function getProfile(id) {
+  const r = must(await admin().from("jh_profiles").select("*").eq("id", id).maybeSingle(), "profile");
+  return r ? toProfile(r) : null;
+}
+async function listProfiles(activeOnly = false) {
+  let q = admin().from("jh_profiles").select("*").order("id");
+  if (activeOnly) q = q.eq("active", true);
+  return must(await q, "profiles").map(toProfile);
+}
+var chunks = (a, n) => Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, i * n + n));
+async function saveFound(p, jobs) {
+  const byId = /* @__PURE__ */ new Map();
+  for (const j of jobs) {
+    if (!j.title || !j.company) continue;
+    const ex = byId.get(j.id);
+    if (!ex) byId.set(j.id, j);
+    else if ((j.description || "").length > (ex.description || "").length) byId.set(j.id, { ...j, url: ex.url || j.url, salary: ex.salary || j.salary });
+  }
+  const ids = [...byId.keys()];
+  if (!ids.length) return { fresh: 0, filtered: 0 };
+  const now = (/* @__PURE__ */ new Date()).toISOString();
+  const existing = /* @__PURE__ */ new Map();
+  for (const c of chunks(ids, 200))
+    for (const r of must(await admin().from("jh_jobs").select("id, description, url, salary").in("id", c), "jobs")) existing.set(r.id, r);
+  const fresh = [];
+  const update = [];
+  for (const j of byId.values()) {
+    const ex = existing.get(j.id);
+    const row = { id: j.id, title: j.title, company: j.company, location: j.location, salary: j.salary, url: j.url, description: j.description, source: j.source, posted_at: j.posted_at, external_id: j.external_id };
+    if (!ex) fresh.push({ ...row, first_seen: now, last_seen: now });
+    else
+      update.push({
+        ...row,
+        description: (j.description || "").length > (ex.description || "").length ? j.description : ex.description,
+        url: ex.url || j.url,
+        salary: ex.salary || j.salary,
+        last_seen: now
+      });
+  }
+  for (const c of chunks(fresh, 200)) must(await admin().from("jh_jobs").insert(c), "insert jobs");
+  for (const c of chunks(update, 200)) must(await admin().from("jh_jobs").upsert(c), "update jobs");
+  const linked = /* @__PURE__ */ new Map();
+  for (const c of chunks(ids, 200))
+    for (const r of must(await admin().from("jh_profile_jobs").select("job_id, sources").eq("profile_id", p.id).in("job_id", c), "links"))
+      linked.set(r.job_id, r.sources);
+  const links = [];
+  let filtered = 0;
+  for (const j of byId.values()) {
+    const src = j.source.split(":")[0];
+    const cur = linked.get(j.id);
+    if (cur === void 0) {
+      const reason = check(j, p.prefs);
+      if (reason) filtered++;
+      links.push({ profile_id: p.id, job_id: j.id, found_at: now, sources: src, filter_reason: reason });
+    } else if (!cur.split(",").includes(src)) {
+      const s = [.../* @__PURE__ */ new Set([...cur.split(",").filter(Boolean), src])].sort().join(",");
+      must(await admin().from("jh_profile_jobs").update({ sources: s }).eq("profile_id", p.id).eq("job_id", j.id), "link sources");
+    }
+  }
+  for (const c of chunks(links, 200)) {
+    must(await admin().from("jh_profile_jobs").insert(c), "insert links");
+    must(
+      await admin().from("jh_applications").upsert(c.map((l) => ({ profile_id: p.id, job_id: l.job_id, status: "new", updated_at: now })), { onConflict: "profile_id,job_id", ignoreDuplicates: true }),
+      "applications"
+    );
+  }
+  return { fresh: links.length, filtered };
+}
+async function startRun(pid) {
+  return Number(must(await admin().from("jh_runs").insert({ profile_id: pid }).select("id").single(), "start run").id);
+}
+async function writeRun(id, f) {
+  const row = {};
+  if (f.log !== void 0) row.log = f.log;
+  if (f.status) row.status = f.status;
+  if (f.stats) row.stats = f.stats;
+  if (f.alerts) row.alerts = f.alerts;
+  if (f.finished) row.finished_at = (/* @__PURE__ */ new Date()).toISOString();
+  must(await admin().from("jh_runs").update(row).eq("id", id), "run");
+}
+async function liveRun(pid) {
+  const since = new Date(Date.now() - 10 * 6e4).toISOString();
+  const r = must(await admin().from("jh_runs").select("id").eq("profile_id", pid).eq("status", "running").gte("started_at", since).limit(1), "runs");
+  return r.length ? Number(r[0].id) : null;
+}
+
+// server/sources.ts
+var SourceNotConfigured = class extends Error {
+};
+var strip = (h) => (h || "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/<br\s*\/?>|<\/p>|<\/li>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/[ \t]+/g, " ").replace(/\n\s+/g, "\n").trim();
+async function getJson(url, init) {
+  const r = await fetch(url, { ...init, headers: { Accept: "application/json", ...init?.headers || {} }, signal: AbortSignal.timeout(25e3) });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+var titlesOf = (p) => p.prefs.target_titles.length ? p.prefs.target_titles : p.profile?.suggested_search_titles ?? [];
+var STOP = /* @__PURE__ */ new Set(["senior", "junior", "lead", "principal", "staff", "consultant", "specialist", "manager", "engineer", "analyst", "associate", "and", "the", "for", "with", "sr", "jr", "ii", "iii"]);
+function titleWords(p) {
+  const skills = (p.profile?.tools_and_modules ?? []).slice(0, 10);
+  const words = [...titlesOf(p), ...skills].join(" ").toLowerCase().split(/[^a-z0-9+#/]+/).filter((w) => w.length >= 2 && !STOP.has(w));
+  return [...new Set(words)];
+}
+var relevant = (title, words) => {
+  const t = ` ${title.toLowerCase().replace(/[^a-z0-9+#/]+/g, " ")} `;
+  return words.some((w) => t.includes(` ${w} `));
+};
+function queries(p, max, offset = 0) {
+  const titles = titlesOf(p);
+  const locs = p.prefs.locations.length ? p.prefs.locations : ["India"];
+  const out = [];
+  for (const t of titles) for (const l of locs) out.push({ title: t, location: l });
+  if (p.prefs.remote_ok && titles[0]) out.splice(locs.length, 0, { title: titles[0], location: "Remote" });
+  if (!out.length) return [];
+  const start = offset % out.length;
+  return [...out.slice(start), ...out.slice(0, start)].slice(0, Math.min(max, out.length));
+}
+function lpa(min, max, currency, period) {
+  if (!min && !max) return "";
+  const mult = period === "MONTH" ? 12 : period === "HOUR" ? 2e3 : 1;
+  const f = (n) => n ? currency === "INR" || !currency ? `${Math.round(n * mult / 1e5)}` : `${Math.round(n * mult)}` : "?";
+  return currency && currency !== "INR" ? `${currency} ${f(min)}\u2013${f(max)}/yr` : `${f(min)}\u2013${f(max)} LPA`;
+}
+var JSEARCH_PATHS = ["/search", "/search-v2", "/v2/search", "/search-jobs", "/job-search"];
+var jsearchPath = null;
+async function jsearchGet(params, key) {
+  const paths = jsearchPath ? [jsearchPath] : JSEARCH_PATHS;
+  let last = "";
+  for (const path of paths) {
+    const r = await fetch(`https://jsearch.p.rapidapi.com${path}?${params}`, {
+      headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "jsearch.p.rapidapi.com" },
+      signal: AbortSignal.timeout(3e4)
+    });
+    const text = await r.text();
+    if (r.status === 404 && /does not exist/i.test(text)) {
+      last = text;
+      continue;
+    }
+    if (r.status === 401 || r.status === 403)
+      throw new SourceNotConfigured(`JSearch rejected the key (HTTP ${r.status}): ${text.slice(0, 160)}. Make sure you subscribed to the free Basic plan.`);
+    if (r.status === 429) throw new Error("JSearch quota/rate limit reached (HTTP 429)");
+    if (!r.ok) throw new Error(`JSearch HTTP ${r.status}: ${text.slice(0, 200)}`);
+    jsearchPath = path;
+    const month = (/* @__PURE__ */ new Date()).toISOString().slice(0, 7);
+    await kvSet(`quota:jsearch:${month}`, String(Number(await kvGet(`quota:jsearch:${month}`) || 0) + 1));
+    const lim = r.headers.get("x-ratelimit-requests-limit");
+    const rem = r.headers.get("x-ratelimit-requests-remaining");
+    if (lim) await kvSet("jsearch_limit", lim);
+    if (rem) await kvSet("jsearch_remaining", rem);
+    return JSON.parse(text);
+  }
+  throw new Error(`JSearch: no known search endpoint responded (${last.slice(0, 120)})`);
+}
+var jsearch = (key, s) => async (q) => {
+  const params = new URLSearchParams({
+    query: q.location === "Remote" ? `${q.title} remote` : `${q.title} in ${q.location}`,
+    page: "1",
+    num_pages: "1",
+    country: "in",
+    date_posted: s.datePosted
+  });
+  if (q.location === "Remote") params.set("work_from_home", "true");
+  const body = await jsearchGet(params, key);
+  const rows = Array.isArray(body.data) ? body.data : body.data?.jobs ?? body.jobs ?? [];
+  return rows.map(
+    (d) => makeJob({
+      title: d.job_title,
+      company: d.employer_name,
+      location: [d.job_city, d.job_state].filter(Boolean).join(", ") || d.job_location || (d.job_is_remote ? "Remote" : d.job_country || ""),
+      salary: lpa(d.job_min_salary, d.job_max_salary, d.job_salary_currency, d.job_salary_period),
+      url: d.job_apply_link || d.job_google_link || "",
+      description: d.job_description || "",
+      source: `jsearch${d.job_publisher ? ":" + String(d.job_publisher).toLowerCase() : ""}`,
+      posted_at: (d.job_posted_at_datetime_utc || "").slice(0, 10),
+      external_id: d.job_id || ""
+    })
+  );
+};
+var adzuna = (id, key, s) => async (q) => {
+  const url = new URL("https://api.adzuna.com/v1/api/jobs/in/search/1");
+  url.searchParams.set("app_id", id);
+  url.searchParams.set("app_key", key);
+  url.searchParams.set("results_per_page", String(s.resultsPerQuery));
+  url.searchParams.set("what", q.location === "Remote" ? `${q.title} remote` : q.title);
+  if (q.location !== "Remote") url.searchParams.set("where", q.location);
+  url.searchParams.set("max_days_old", String({ all: 60, today: 1, "3days": 3, week: 7, month: 30 }[s.datePosted]));
+  url.searchParams.set("content-type", "application/json");
+  const r = await fetch(url, { signal: AbortSignal.timeout(25e3) });
+  if (r.status === 401 || r.status === 403) throw new SourceNotConfigured(`Adzuna rejected the credentials (HTTP ${r.status})`);
+  if (!r.ok) throw new Error(`Adzuna HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  const body = await r.json();
+  return (body.results ?? []).map(
+    (d) => makeJob({
+      title: d.title?.replace(/<[^>]+>/g, ""),
+      company: d.company?.display_name || "",
+      location: d.location?.display_name || "",
+      salary: d.salary_is_predicted === "1" ? "" : lpa(d.salary_min, d.salary_max, "INR", "YEAR"),
+      url: d.redirect_url || "",
+      description: (d.description || "").replace(/<[^>]+>/g, ""),
+      source: "adzuna",
+      posted_at: (d.created || "").slice(0, 10),
+      external_id: String(d.id || "")
+    })
+  );
+};
+var JOOBLE_CITY = { bangalore: "Bengaluru", bengaluru: "Bengaluru", gurgaon: "Gurugram", bombay: "Mumbai", calcutta: "Kolkata", madras: "Chennai" };
+async function joobleOnce(key, keywords, location) {
+  const body = await getJson(`https://jooble.org/api/${encodeURIComponent(key)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ keywords, location, page: "1" })
+  });
+  return body.jobs ?? [];
+}
+var jooble = (key) => async (q) => {
+  let rows;
+  if (q.location === "Remote") rows = await joobleOnce(key, `${q.title} remote`, "India");
+  else {
+    const c = JOOBLE_CITY[q.location.toLowerCase()] ?? q.location;
+    rows = await joobleOnce(key, q.title, c);
+    if (!rows.length) {
+      const core = q.title.replace(/\b(senior|junior|lead|functional|consultant|specialist|analyst)\b/gi, " ").replace(/\s+/g, " ").trim();
+      if (core && core !== q.title) rows = await joobleOnce(key, core, c);
+    }
+  }
+  return rows.map(
+    (d) => makeJob({
+      title: strip(d.title || ""),
+      company: d.company || "",
+      location: d.location || "",
+      salary: d.salary || "",
+      url: d.link || "",
+      description: strip(d.snippet || ""),
+      source: `jooble${d.source ? ":" + String(d.source).toLowerCase() : ""}`,
+      posted_at: (d.updated || "").slice(0, 10),
+      external_id: String(d.id || "")
+    })
+  );
+};
+async function fetchRemotive(p, log) {
+  if (!p.prefs.remote_ok) return [];
+  const term = titlesOf(p)[0]?.split(/\s+/).slice(0, 3).join(" ");
+  if (!term) return [];
+  const body = await getJson(`https://remotive.com/api/remote-jobs?search=${encodeURIComponent(term)}&limit=50`);
+  const words = titleWords(p);
+  const rows = (body.jobs ?? []).filter((d) => relevant(d.title, words));
+  log(`remotive: "${term}" \u2192 ${rows.length}`);
+  return rows.map(
+    (d) => makeJob({
+      title: d.title,
+      company: d.company_name,
+      location: `Remote (${d.candidate_required_location || "anywhere"})`,
+      salary: d.salary || "",
+      url: d.url,
+      description: strip(d.description || ""),
+      source: "remotive",
+      posted_at: (d.publication_date || "").slice(0, 10),
+      external_id: String(d.id)
+    })
+  );
+}
+async function jsearchBudget(cap, schedule) {
+  const month = (/* @__PURE__ */ new Date()).toISOString().slice(0, 7);
+  const limit = Number(await kvGet("jsearch_limit")) || 200;
+  const used = Number(await kvGet(`quota:jsearch:${month}`) || 0);
+  const reported = await kvGet("jsearch_remaining");
+  const remaining = Math.max(0, reported != null ? Math.min(Number(reported), limit - used) : limit - used);
+  const d = /* @__PURE__ */ new Date();
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  let runs = 0;
+  for (let day = d.getDate(); day <= last; day++) {
+    const wd = new Date(d.getFullYear(), d.getMonth(), day).getDay();
+    if (!schedule.weekdaysOnly || wd !== 0 && wd !== 6) runs++;
+  }
+  const people = Math.max(1, (await listProfiles(true)).filter((p) => p.prefs.sources.job_api).length);
+  const fair = Math.floor(remaining / Math.max(1, runs * people));
+  return { n: Math.max(remaining > 0 ? 1 : 0, Math.min(cap, fair)), why: `${remaining} of ${limit} left this month, ~${runs} runs to go` };
+}
+async function fetchApis(p, s, log) {
+  const all = [];
+  const used = [];
+  const run = async (name, fn, n) => {
+    used.push(name);
+    const ck = `qcursor:${name}:${p.id}`;
+    const offset = Number(await kvGet(ck) || 0);
+    await kvSet(ck, String(offset + n));
+    for (const q of queries(p, n, offset)) {
+      try {
+        const got = await fn(q);
+        log(`${name}: "${q.title}" / ${q.location} \u2192 ${got.length}`);
+        all.push(...got);
+      } catch (e) {
+        if (e instanceof SourceNotConfigured) throw e;
+        log(`${name}: "${q.title}" / ${q.location} failed \u2014 ${e?.message ?? e}`);
+        if (/429|quota/i.test(String(e?.message))) break;
+      }
+    }
+  };
+  const rapid = await secret("RAPIDAPI_KEY");
+  if (rapid) {
+    const b = await jsearchBudget(s.jobApi.maxQueriesPerRun, s.schedule);
+    log(`jsearch: ${b.n} searches this run (${b.why})`);
+    if (b.n > 0) await run("jsearch", jsearch(rapid, s.jobApi), b.n);
+  }
+  const [azId, azKey] = [await secret("ADZUNA_APP_ID"), await secret("ADZUNA_APP_KEY")];
+  if (azId && azKey) await run("adzuna", adzuna(azId, azKey, s.jobApi), s.jobApi.maxQueriesPerRun);
+  const jk = await secret("JOOBLE_API_KEY");
+  if (jk) await run("jooble", jooble(jk), s.jobApi.maxQueriesPerRun);
+  try {
+    const r = await fetchRemotive(p, log);
+    if (r.length) used.push("remotive");
+    all.push(...r);
+  } catch (e) {
+    log(`remotive failed \u2014 ${e?.message ?? e}`);
+  }
+  if (!used.length) throw new SourceNotConfigured("No job search API key yet. Add a free JSearch, Jooble or Adzuna key in Settings \u2192 Job sources.");
+  return all;
+}
+function parseBoard(s) {
+  const v = s.trim();
+  const direct = v.match(/^(greenhouse|lever|ashby|smartrecruiters):([\w.%-]+)$/i);
+  if (direct) return { ats: direct[1].toLowerCase(), id: decodeURIComponent(direct[2]) };
+  const rules = [
+    ["greenhouse", /greenhouse\.io\/(?:embed\/job_board\?for=)?([\w.-]+)/i],
+    ["lever", /jobs\.lever\.co\/([\w.-]+)/i],
+    ["ashby", /jobs\.ashbyhq\.com\/([\w.%-]+)/i],
+    ["smartrecruiters", /(?:careers|jobs)\.smartrecruiters\.com\/([\w.-]+)/i]
+  ];
+  for (const [ats, re] of rules) {
+    const m = v.match(re);
+    if (m) return { ats, id: decodeURIComponent(m[1]) };
+  }
+  return null;
+}
+var nice = (id) => id.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+async function boardJobs(b, words, query) {
+  const out = [];
+  if (b.ats === "greenhouse") {
+    const body = await getJson(`https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(b.id)}/jobs?content=true`);
+    for (const d of body.jobs ?? []) {
+      if (!relevant(d.title, words)) continue;
+      out.push(makeJob({ title: d.title, company: d.company_name || nice(b.id), location: d.location?.name || "", url: d.absolute_url, description: strip(d.content || ""), source: "board:greenhouse", posted_at: (d.updated_at || "").slice(0, 10), external_id: String(d.id) }));
+    }
+  } else if (b.ats === "lever") {
+    const rows = await getJson(`https://api.lever.co/v0/postings/${encodeURIComponent(b.id)}?mode=json`);
+    for (const d of rows ?? []) {
+      if (!relevant(d.text, words)) continue;
+      out.push(makeJob({ title: d.text, company: nice(b.id), location: d.categories?.location || (d.workplaceType === "remote" ? "Remote" : ""), url: d.hostedUrl, description: d.descriptionPlain || strip(d.description || ""), source: "board:lever", posted_at: d.createdAt ? new Date(d.createdAt).toISOString().slice(0, 10) : "", external_id: d.id }));
+    }
+  } else if (b.ats === "ashby") {
+    const body = await getJson(`https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(b.id)}`);
+    for (const d of body.jobs ?? []) {
+      if (!relevant(d.title, words)) continue;
+      out.push(makeJob({ title: d.title, company: nice(b.id), location: d.location || (d.isRemote ? "Remote" : ""), url: d.jobUrl, description: d.descriptionPlain || "", source: "board:ashby", posted_at: (d.publishedAt || "").slice(0, 10), external_id: d.id || d.jobUrl }));
+    }
+  } else {
+    const body = await getJson(`https://api.smartrecruiters.com/v1/companies/${encodeURIComponent(b.id)}/postings?limit=100&q=${encodeURIComponent(query)}`);
+    for (const d of body.content ?? []) {
+      if (!relevant(d.name, words)) continue;
+      const loc = [d.location?.city, d.location?.region].filter(Boolean).join(", ") || (d.location?.remote ? "Remote" : "");
+      out.push(makeJob({ title: d.name, company: d.company?.name || nice(b.id), location: loc, url: `https://jobs.smartrecruiters.com/${encodeURIComponent(b.id)}/${d.id}`, description: [d.department?.label, d.function?.label, d.experienceLevel?.label].filter(Boolean).join(" \xB7 "), source: "board:smartrecruiters", posted_at: (d.releasedDate || "").slice(0, 10), external_id: d.id }));
+    }
+  }
+  return out;
+}
+async function fetchBoards(p, log) {
+  const words = titleWords(p);
+  const query = (titlesOf(p)[0] || "").split(/\s+/).filter((w) => !STOP.has(w.toLowerCase())).slice(0, 2).join(" ");
+  const all = [];
+  for (const raw of p.prefs.watch_companies ?? []) {
+    const b = parseBoard(raw);
+    if (!b) {
+      log(`careers: can't read "${raw}" \u2014 paste the company's Greenhouse, Lever, Ashby or SmartRecruiters jobs link`);
+      continue;
+    }
+    try {
+      const got = await boardJobs(b, words, query);
+      log(`careers: ${b.id} (${b.ats}) \u2192 ${got.length} matching openings`);
+      all.push(...got);
+    } catch (e) {
+      log(`careers: ${b.id} (${b.ats}) failed: ${e?.message ?? e}`);
+    }
+  }
+  return all;
+}
+
+// server/runner.ts
+var IST = () => (/* @__PURE__ */ new Date()).toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour12: false });
+async function runProfile(p, runId, only) {
+  const s = await getSettings();
+  const lines = [];
+  const alerts = [];
+  const stats = { fetched: 0, new: 0, filtered: 0, scored: 0, score_failed: 0 };
+  let status = "ok";
+  let lastFlush = 0;
+  const flush = async (force = false) => {
+    if (!force && Date.now() - lastFlush < 1500) return;
+    lastFlush = Date.now();
+    await writeRun(runId, { log: lines.join("\n") }).catch(() => {
+    });
+  };
+  const log = (line) => {
+    lines.push(`${IST()} ${line}`);
+    void flush();
+  };
+  const alert = (a) => {
+    alerts.push(a);
+    log(`[${a.level}] ${a.source}: ${a.message}`);
+  };
+  const sources = [
+    ["job_api", () => fetchApis(p, s, log)],
+    ["careers", () => fetchBoards(p, log)]
+  ];
+  try {
+    log(`Run started for ${p.name}`);
+    for (const [key, fetcher] of sources) {
+      if (only && !only.includes(key)) continue;
+      if (!p.prefs.sources[key]) continue;
+      log(`\u2014 ${key}`);
+      try {
+        const jobs = await fetcher();
+        const r = await saveFound(p, jobs);
+        stats.fetched += jobs.length;
+        stats.new += r.fresh;
+        stats.filtered += r.filtered;
+        stats[`src_${key}`] = jobs.length;
+        log(`${key}: ${jobs.length} fetched, ${r.fresh} new`);
+      } catch (e) {
+        status = "partial";
+        alert({ level: "warn", source: key, message: e instanceof SourceNotConfigured ? e.message : `failed: ${e?.message ?? e}` });
+      }
+    }
+    log(`Done: ${stats.new} new, ${stats.filtered} filtered out`);
+  } catch (e) {
+    status = "error";
+    alert({ level: "stop", source: "run", message: e?.message ?? String(e) });
+  } finally {
+    await writeRun(runId, { log: lines.join("\n"), status, stats, alerts, finished: true });
+  }
+}
+
 // server/llm.ts
 import Anthropic from "npm:@anthropic-ai/sdk@1.12.0";
 import { zodOutputFormat } from "npm:@anthropic-ai/sdk@1.12.0/helpers/zod";
@@ -420,6 +970,16 @@ var actions = {
       return { ok: false, message: String(e?.message ?? e) };
     }
   },
+  // ---- job checks
+  async "run.start"({ pid, only }) {
+    const p = await getProfile(Number(pid));
+    if (!p) throw new HttpError(404, "Profile not found");
+    if (!p.profile) throw new HttpError(400, "Add a resume to this profile first");
+    if (await liveRun(p.id)) throw new HttpError(409, "A check is already running for this person");
+    const runId = await startRun(p.id);
+    EdgeRuntime.waitUntil(runProfile(p, runId, Array.isArray(only) ? only : void 0));
+    return runId;
+  },
   // ---- AI engine
   async "llm.models"() {
     return (await Llm.load()).models();
@@ -428,10 +988,38 @@ var actions = {
     return (await Llm.load()).label;
   }
 };
+var istNow = () => {
+  const d = new Date(Date.now() + 5.5 * 36e5);
+  return { day: d.toISOString().slice(0, 10), time: d.toISOString().slice(11, 16), weekday: d.getUTCDay() };
+};
+async function cronTick() {
+  const s = await getSettings();
+  const now = istNow();
+  if (!s.schedule.enabled) return { skipped: "schedule off" };
+  if (s.schedule.weekdaysOnly && (now.weekday === 0 || now.weekday === 6)) return { skipped: "weekend" };
+  if (now.time < s.schedule.time) return { skipped: `before ${s.schedule.time} IST` };
+  for (const p of await listProfiles(true)) {
+    if (!p.profile) continue;
+    const k = `daily:${p.id}`;
+    if (await kvGet(k) === now.day) continue;
+    if (await liveRun(p.id)) return { waiting: p.name };
+    await kvSet(k, now.day);
+    const runId = await startRun(p.id);
+    EdgeRuntime.waitUntil(runProfile(p, runId));
+    return { started: p.name, runId };
+  }
+  return { done: "everyone checked today" };
+}
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
   try {
+    const cron = req.headers.get("x-jh-cron");
+    if (cron) {
+      const token = await secret("CRON_TOKEN");
+      if (!token || cron !== token) throw new HttpError(401, "bad cron token");
+      return json({ data: await cronTick() });
+    }
     const who = await requireMember(req);
     const { action, args } = await req.json();
     const fn = actions[action];

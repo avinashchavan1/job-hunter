@@ -2,7 +2,9 @@
 // Every call must come from a signed-in member (jh_members). Keys stay on the server.
 import { DEFAULT_PREFS, type ParsedProfile, type Prefs, type SecretKey } from '../src/shared/types'
 import { contactFromText, mergeParsed, RESUME_SYSTEM, ResumeSchema, resumePrompt } from '../src/shared/resume'
-import { admin, HttpError, requireMember, secretStatus, setSecret } from './ctx'
+import { admin, getSettings, HttpError, requireMember, secret, secretStatus, setSecret } from './ctx'
+import { runProfile } from './runner'
+import { getProfile, kvGet, kvSet, listProfiles, liveRun, startRun } from './store'
 import { Llm, LLMNotConfigured } from './llm'
 import { resumeText } from './resume'
 
@@ -81,6 +83,17 @@ const actions: Record<string, Handler> = {
     }
   },
 
+  // ---- job checks
+  async 'run.start'({ pid, only }) {
+    const p = await getProfile(Number(pid))
+    if (!p) throw new HttpError(404, 'Profile not found')
+    if (!p.profile) throw new HttpError(400, 'Add a resume to this profile first')
+    if (await liveRun(p.id)) throw new HttpError(409, 'A check is already running for this person')
+    const runId = await startRun(p.id)
+    EdgeRuntime.waitUntil(runProfile(p, runId, Array.isArray(only) ? only : undefined))
+    return runId
+  },
+
   // ---- AI engine
   async 'llm.models'() {
     return (await Llm.load()).models()
@@ -90,10 +103,43 @@ const actions: Record<string, Handler> = {
   }
 }
 
+// ---------------------------------------------------------------- daily schedule (called by pg_cron every 15 minutes)
+
+const istNow = (): { day: string; time: string; weekday: number } => {
+  const d = new Date(Date.now() + 5.5 * 3600_000) // India has no daylight saving
+  return { day: d.toISOString().slice(0, 10), time: d.toISOString().slice(11, 16), weekday: d.getUTCDay() }
+}
+
+/** Starts the daily check for at most one person per tick, so each run gets the full time limit. */
+async function cronTick(): Promise<unknown> {
+  const s = await getSettings()
+  const now = istNow()
+  if (!s.schedule.enabled) return { skipped: 'schedule off' }
+  if (s.schedule.weekdaysOnly && (now.weekday === 0 || now.weekday === 6)) return { skipped: 'weekend' }
+  if (now.time < s.schedule.time) return { skipped: `before ${s.schedule.time} IST` }
+  for (const p of await listProfiles(true)) {
+    if (!p.profile) continue
+    const k = `daily:${p.id}`
+    if ((await kvGet(k)) === now.day) continue
+    if (await liveRun(p.id)) return { waiting: p.name }
+    await kvSet(k, now.day)
+    const runId = await startRun(p.id)
+    EdgeRuntime.waitUntil(runProfile(p, runId))
+    return { started: p.name, runId }
+  }
+  return { done: 'everyone checked today' }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: CORS })
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405)
   try {
+    const cron = req.headers.get('x-jh-cron')
+    if (cron) {
+      const token = await secret('CRON_TOKEN' as any)
+      if (!token || cron !== token) throw new HttpError(401, 'bad cron token')
+      return json({ data: await cronTick() })
+    }
     const who = await requireMember(req)
     const { action, args } = await req.json()
     const fn = actions[action]

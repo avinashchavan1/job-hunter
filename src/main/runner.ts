@@ -1,7 +1,7 @@
 // One "run" = collect from every enabled source, dedupe, filter, score, record.
 import { Job, Profile, RunAlert, RunProgress, SourceKey } from '../shared/types'
 import * as db from './db'
-import { check } from './filters'
+import { check } from '../shared/filters'
 import { LLMNotConfigured } from './llm'
 import { scorePending } from './matcher'
 import { getSettings } from './settings'

@@ -1,5 +1,5 @@
 // Cheap hard filters applied before any Claude call.
-import { Job, Prefs } from '../shared/types'
+import { Job, Prefs } from './types'
 
 const esc = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const has = (text: string, phrase: string): boolean => new RegExp(`\\b${esc(phrase.toLowerCase())}\\b`).test(text)

@@ -2,7 +2,7 @@
 // backed by Supabase (tables + storage, protected by row security) and the jh-api server function.
 // Features that arrive in later steps answer with empty data or a clear "not yet" message.
 import type { Api } from '../../src/preload/index'
-import { DEFAULT_PREFS, type AppSettings, type Contact, type Prefs, type Profile, type ProfileStats, type SecretKey } from '@shared/types'
+import { DEFAULT_PREFS, STATUSES, type AppSettings, type Contact, type Match, type Prefs, type Profile, type ProfileStats, type Run, type RunProgress, type SecretKey } from '@shared/types'
 import { DEFAULT_SETTINGS, deepMerge } from '@shared/settings'
 import { sb } from './supabase'
 
@@ -111,6 +111,65 @@ async function saveSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
   return next
 }
 
+// ---------------------------------------------------------------- run progress: poll the runs table while a check is going
+
+const jobUrls = new Map<string, string>()
+const listeners = new Set<(e: RunProgress) => void>()
+const seen = new Map<number, { pid: number; lines: number }>() // run id -> lines already sent
+let timer: ReturnType<typeof setTimeout> | null = null
+
+async function liveRuns(): Promise<any[]> {
+  const since = new Date(Date.now() - 10 * 60_000).toISOString()
+  return must(await sb.from('jh_runs').select('id, profile_id, status, log').eq('status', 'running').gte('started_at', since)) as any[]
+}
+
+async function poll(): Promise<void> {
+  timer = null
+  try {
+    const live = await liveRuns()
+    const ids = new Set(live.map((r) => Number(r.id)))
+    // finished since last poll: fetch final log once
+    const ended = [...seen.keys()].filter((id) => !ids.has(id))
+    const finals = ended.length ? ((must(await sb.from('jh_runs').select('id, profile_id, status, log').in('id', ended)) as any[]) ?? []) : []
+    for (const r of [...live, ...finals]) {
+      const id = Number(r.id)
+      const pid = Number(r.profile_id)
+      const lines = String(r.log || '').split('\n').filter(Boolean)
+      const s = seen.get(id) ?? { pid, lines: 0 }
+      for (const line of lines.slice(s.lines)) listeners.forEach((cb) => cb({ profileId: pid, phase: 'run', line: line.replace(/^\d\d:\d\d:\d\d /, ''), running: true }))
+      s.lines = lines.length
+      if (r.status === 'running') seen.set(id, s)
+      else {
+        seen.delete(id)
+        listeners.forEach((cb) => cb({ profileId: pid, phase: 'done', line: '', running: false }))
+      }
+    }
+    if (live.length) timer = setTimeout(poll, 2000)
+  } catch {
+    timer = setTimeout(poll, 5000)
+  }
+}
+const watch = (): void => {
+  if (!timer) timer = setTimeout(poll, 300)
+}
+
+/** Next daily check in India time, shown in Settings. */
+async function nextRunAt(): Promise<string | null> {
+  const s = (await getSettings()).schedule
+  if (!s.enabled) return null
+  const [h, m] = s.time.split(':').map(Number)
+  const ist = (d: Date): Date => new Date(d.getTime() + 5.5 * 3600_000)
+  for (let i = 0; i < 8; i++) {
+    const day = ist(new Date(Date.now() + i * 86400_000))
+    const t = new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), h, m) - 5.5 * 3600_000)
+    if (t.getTime() <= Date.now()) continue
+    const wd = day.getUTCDay()
+    if (s.weekdaysOnly && (wd === 0 || wd === 6)) continue
+    return t.toISOString()
+  }
+  return null
+}
+
 const EMPTY_STATS: ProfileStats = { total: 0, filtered: 0, scored: 0, avg_score: 0, new_today: 0, unscored: 0, by_status: {}, by_source: {} }
 
 // ---------------------------------------------------------------- the bridge
@@ -143,19 +202,45 @@ export const webApi: Api = {
     contactFromResume: (id) => call<Partial<Contact>>('resume.contact', { pid: id })
   },
 
-  // ---- arrive in steps 3–5
   matches: {
-    list: async () => [],
-    setStatus: async () => NOT_YET('The tracker'),
+    list: async (pid, opts) => {
+      let q = sb.from('jh_matches').select('*').eq('profile_id', pid)
+      if (!opts?.includeFiltered) q = q.is('filter_reason', null)
+      if (opts?.status) q = q.eq('status', opts.status)
+      const rows = must(await q.order('score', { ascending: false, nullsFirst: false }).order('found_at', { ascending: false }).limit(1000)) as any[]
+      for (const r of rows) jobUrls.set(r.id, r.url)
+      return rows.map(({ profile_id: _p, first_seen: _f, last_seen: _l, ...r }) => r) as Match[]
+    },
+    setStatus: async (pid, jid, status, notes) => {
+      if (!STATUSES.includes(status)) throw new Error(`status must be one of ${STATUSES.join(', ')}`)
+      const row: Record<string, unknown> = { profile_id: pid, job_id: jid, status, updated_at: new Date().toISOString() }
+      if (notes !== undefined) row.notes = notes
+      must(await sb.from('jh_applications').upsert(row))
+    },
     rescore: async () => NOT_YET('Re-scoring')
   },
-  stats: async () => EMPTY_STATS,
-  runs: async () => [],
+  stats: async (pid) => {
+    const midnight = new Date()
+    midnight.setHours(0, 0, 0, 0)
+    return { ...EMPTY_STATS, ...(must(await sb.rpc('jh_stats', { pid, since: midnight.toISOString() })) as ProfileStats) }
+  },
+  runs: async (pid) =>
+    (must(await sb.from('jh_runs').select('*').eq('profile_id', pid).order('id', { ascending: false }).limit(20)) as any[]).map((r) => ({
+      ...r, id: Number(r.id), profile_id: Number(r.profile_id), stats: r.stats ?? {}, alerts: r.alerts ?? []
+    })) as Run[],
   run: {
-    start: async () => NOT_YET('Checking for jobs'),
+    start: async (pid, only) => {
+      await call<number>('run.start', { pid, only })
+      watch()
+      return true
+    },
     all: async () => false,
-    status: async () => ({ running: false, nextRunAt: null }),
-    onProgress: () => () => {}
+    status: async () => ({ running: (await liveRuns()).length > 0, nextRunAt: await nextRunAt() }),
+    onProgress: (cb) => {
+      listeners.add(cb)
+      watch()
+      return () => void listeners.delete(cb)
+    }
   },
 
   settings: {
@@ -192,7 +277,13 @@ export const webApi: Api = {
     logout: async () => false
   },
   autofill: {
-    open: async (_pid, _jid) => false
+    // no form filling on the web: Apply opens the posting in a new tab (synchronously, so pop-up blockers allow it)
+    open: async (_pid, jid) => {
+      const url = jobUrls.get(jid)
+      if (!url) throw new Error('This job has no link.')
+      window.open(url, '_blank', 'noopener,noreferrer')
+      return true
+    }
   },
   assist: {
     tailor: async () => NOT_YET('Tailored resume'),
