@@ -22,18 +22,30 @@ export function KeyField({
     if (!val.trim()) return
     setBusy(true)
     setRes(null)
-    onSaved(await window.api.secrets.set(k, val))
-    setVal('')
-    if (test) setRes(await window.api.secrets.test(test))
+    try {
+      onSaved(await window.api.secrets.set(k, val))
+      setVal('')
+      if (test) setRes(await window.api.secrets.test(test))
+    } catch (e: any) {
+      setRes({ ok: false, message: String(e?.message ?? e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '') })
+    }
     setBusy(false)
   }
   const clear = async (): Promise<void> => {
-    onSaved(await window.api.secrets.set(k, ''))
-    setRes(null)
+    try {
+      onSaved(await window.api.secrets.set(k, ''))
+      setRes(null)
+    } catch (e: any) {
+      setRes({ ok: false, message: String(e?.message ?? e) })
+    }
   }
   const runTest = async (): Promise<void> => {
     setBusy(true)
-    setRes(await window.api.secrets.test(test!))
+    try {
+      setRes(await window.api.secrets.test(test!))
+    } catch (e: any) {
+      setRes({ ok: false, message: String(e?.message ?? e) })
+    }
     setBusy(false)
   }
 
@@ -42,7 +54,7 @@ export function KeyField({
       <div className="mb-1.5 flex items-center justify-between">
         <label className="label !mb-0">{label}</label>
         {isSet ? (
-          <span className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={12} /> Saved in Keychain</span>
+          <span className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={12} /> {window.api.isWeb ? 'Saved' : 'Saved in Keychain'}</span>
         ) : (
           <span className="text-xs text-ink-400">Not set</span>
         )}

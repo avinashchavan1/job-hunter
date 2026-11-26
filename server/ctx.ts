@@ -51,8 +51,9 @@ export async function secrets(): Promise<Partial<Record<SecretKey, string>>> {
   _secretsAt = Date.now()
   return fresh
 }
+/** Key saved from the app (jh_secrets), else a Supabase function secret named JH_<KEY> (set in the dashboard). */
 export async function secret(k: SecretKey): Promise<string> {
-  return ((await secrets())[k] ?? '').trim()
+  return ((await secrets())[k] ?? '').trim() || env(`JH_${k}`).trim()
 }
 export async function setSecret(k: SecretKey, v: string): Promise<void> {
   if (!SECRET_KEYS.includes(k)) throw new HttpError(400, 'unknown key')
@@ -64,5 +65,5 @@ export async function setSecret(k: SecretKey, v: string): Promise<void> {
 }
 export async function secretStatus(): Promise<Record<SecretKey, boolean>> {
   const s = await secrets()
-  return Object.fromEntries(SECRET_KEYS.map((k) => [k, !!(s[k] ?? '').trim()])) as Record<SecretKey, boolean>
+  return Object.fromEntries(SECRET_KEYS.map((k) => [k, !!((s[k] ?? '').trim() || env(`JH_${k}`).trim())])) as Record<SecretKey, boolean>
 }

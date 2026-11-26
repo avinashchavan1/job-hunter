@@ -13,8 +13,10 @@ const CORS = {
   'access-control-allow-headers': 'authorization, content-type, apikey, x-client-info',
   'access-control-allow-methods': 'POST, OPTIONS'
 }
+let reqHeaders = ''
+const cors = (): Record<string, string> => ({ ...CORS, ...(reqHeaders ? { 'access-control-allow-headers': reqHeaders } : {}) })
 const json = (body: unknown, status = 200): Response =>
-  new Response(JSON.stringify(body ?? null), { status, headers: { ...CORS, 'content-type': 'application/json' } })
+  new Response(JSON.stringify(body ?? null), { status, headers: { ...cors(), 'content-type': 'application/json' } })
 
 async function profileRow(pid: number): Promise<any> {
   const { data, error } = await admin().from('jh_profiles').select('*').eq('id', pid).maybeSingle()
@@ -70,7 +72,7 @@ const actions: Record<string, Handler> = {
     return secretStatus()
   },
   async 'secrets.set'({ key, value }, who) {
-    if (!who.isAdmin) throw new HttpError(403, 'Only an admin can change keys')
+    if (!who.isAdmin) throw new HttpError(403, `Only an admin can change keys. ${who.email} is a member, not an admin.`)
     await setSecret(key as SecretKey, String(value ?? ''))
     return secretStatus()
   },
@@ -131,7 +133,9 @@ async function cronTick(): Promise<unknown> {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: CORS })
+  // allow whatever headers the browser client asks for (newer supabase-js versions add some)
+  reqHeaders = req.headers.get('access-control-request-headers') ?? ''
+  if (req.method === 'OPTIONS') return new Response(null, { headers: cors() })
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405)
   try {
     const cron = req.headers.get('x-jh-cron')

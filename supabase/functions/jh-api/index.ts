@@ -162,7 +162,7 @@ async function secrets() {
   return fresh;
 }
 async function secret(k) {
-  return ((await secrets())[k] ?? "").trim();
+  return ((await secrets())[k] ?? "").trim() || env(`JH_${k}`).trim();
 }
 async function setSecret(k, v) {
   if (!SECRET_KEYS.includes(k)) throw new HttpError(400, "unknown key");
@@ -174,7 +174,7 @@ async function setSecret(k, v) {
 }
 async function secretStatus() {
   const s = await secrets();
-  return Object.fromEntries(SECRET_KEYS.map((k) => [k, !!(s[k] ?? "").trim()]));
+  return Object.fromEntries(SECRET_KEYS.map((k) => [k, !!((s[k] ?? "").trim() || env(`JH_${k}`).trim())]));
 }
 
 // server/store.ts
@@ -909,7 +909,9 @@ var CORS = {
   "access-control-allow-headers": "authorization, content-type, apikey, x-client-info",
   "access-control-allow-methods": "POST, OPTIONS"
 };
-var json = (body, status = 200) => new Response(JSON.stringify(body ?? null), { status, headers: { ...CORS, "content-type": "application/json" } });
+var reqHeaders = "";
+var cors = () => ({ ...CORS, ...reqHeaders ? { "access-control-allow-headers": reqHeaders } : {} });
+var json = (body, status = 200) => new Response(JSON.stringify(body ?? null), { status, headers: { ...cors(), "content-type": "application/json" } });
 async function profileRow(pid) {
   const { data, error } = await admin().from("jh_profiles").select("*").eq("id", pid).maybeSingle();
   if (error) throw new Error(error.message);
@@ -958,7 +960,7 @@ var actions = {
     return secretStatus();
   },
   async "secrets.set"({ key, value }, who) {
-    if (!who.isAdmin) throw new HttpError(403, "Only an admin can change keys");
+    if (!who.isAdmin) throw new HttpError(403, `Only an admin can change keys. ${who.email} is a member, not an admin.`);
     await setSecret(key, String(value ?? ""));
     return secretStatus();
   },
@@ -1011,7 +1013,8 @@ async function cronTick() {
   return { done: "everyone checked today" };
 }
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
+  reqHeaders = req.headers.get("access-control-request-headers") ?? "";
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
   try {
     const cron = req.headers.get("x-jh-cron");
