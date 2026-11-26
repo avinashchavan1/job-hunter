@@ -11,6 +11,7 @@ import { sb } from './supabase'
 import { SignIn } from './SignIn'
 import { Members } from './Members'
 import { webApi } from './api'
+import { AccountMenu } from './Account'
 
 window.api = webApi
 
@@ -91,6 +92,7 @@ function Root(): ReactNode {
   return (
     <>
       <App key={session.user.id} />
+      <AccountMenu user={session.user} isAdmin={access!.admin} />
       <GmailNotice />
     </>
   )
