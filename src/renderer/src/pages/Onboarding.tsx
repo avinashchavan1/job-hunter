@@ -66,7 +66,7 @@ export function Onboarding({
         </div>
         {!onCancel && (
           <p className="mt-3 text-sm leading-relaxed text-ink-300">
-            Each morning it finds jobs that fit the resume, ranks them, and helps you apply — tailored resume, cover note, form filling. You always press Submit yourself. Nothing leaves this computer except to the AI and job services you set up.
+            {window.api.isWeb ? 'Each morning it finds jobs that fit the resume, ranks them, and helps you apply with a tailored resume, cover note and interview prep. Only people you invite can sign in.' : 'Each morning it finds jobs that fit the resume, ranks them, and helps you apply — tailored resume, cover note, form filling. You always press Submit yourself. Nothing leaves this computer except to the AI and job services you set up.'}
           </p>
         )}
 

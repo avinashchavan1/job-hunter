@@ -5,7 +5,10 @@ import { ChipInput, Spinner, cx } from '../ui'
 import { ExtLink, KeyField } from './KeyField'
 
 export function llmReady(s: AppSettings, secrets: Record<SecretKey, boolean>): boolean {
-  return s.llm.provider === 'anthropic' ? secrets.ANTHROPIC_API_KEY : !!s.llm.baseUrl
+  if (s.llm.provider === 'anthropic') return secrets.ANTHROPIC_API_KEY
+  if (!s.llm.baseUrl) return false
+  // a server on this computer may need no key; anything on the internet (OpenRouter etc.) does
+  return /localhost|127\.0\.0\.1/.test(s.llm.baseUrl) || secrets.LLM_API_KEY
 }
 
 export function AiEngine({
