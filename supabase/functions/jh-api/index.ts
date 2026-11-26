@@ -360,9 +360,27 @@ async function writeRun(id, f) {
   must(await admin().from("jh_runs").update(row).eq("id", id), "run");
 }
 async function liveRun(pid) {
-  const since = new Date(Date.now() - 10 * 6e4).toISOString();
+  const since = new Date(Date.now() - 4 * 6e4).toISOString();
+  await admin().from("jh_runs").update({ status: "error", finished_at: (/* @__PURE__ */ new Date()).toISOString(), alerts: [{ level: "warn", source: "run", message: "Stopped before finishing (server time limit or update). Jobs found so far were kept." }] }).eq("profile_id", pid).eq("status", "running").lt("started_at", since);
   const r = must(await admin().from("jh_runs").select("id").eq("profile_id", pid).eq("status", "running").gte("started_at", since).limit(1), "runs");
   return r.length ? Number(r[0].id) : null;
+}
+async function unscoredJobs(pid, limit) {
+  const rows = must(
+    await admin().from("jh_matches").select("id, title, company, location, salary, url, description, source, posted_at, external_id").eq("profile_id", pid).is("filter_reason", null).is("score", null).order("found_at", { ascending: false }).limit(limit),
+    "unscored"
+  );
+  return rows;
+}
+async function getJob(id) {
+  return must(await admin().from("jh_jobs").select("*").eq("id", id).maybeSingle(), "job") ?? null;
+}
+async function saveScore(pid, jid, s) {
+  must(await admin().from("jh_scores").upsert({ profile_id: pid, job_id: jid, ...s, scored_at: (/* @__PURE__ */ new Date()).toISOString() }), "save score");
+}
+async function profilesWithUnscored() {
+  const rows = must(await admin().from("jh_matches").select("profile_id").is("filter_reason", null).is("score", null).limit(500), "pending");
+  return [...new Set(rows.map((r) => Number(r.profile_id)))];
 }
 
 // server/sources.ts
@@ -664,65 +682,75 @@ async function fetchBoards(p, log) {
   return all;
 }
 
-// server/runner.ts
-var IST = () => (/* @__PURE__ */ new Date()).toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour12: false });
-async function runProfile(p, runId, only) {
-  const s = await getSettings();
-  const lines = [];
-  const alerts = [];
-  const stats = { fetched: 0, new: 0, filtered: 0, scored: 0, score_failed: 0 };
-  let status = "ok";
-  let lastFlush = 0;
-  const flush = async (force = false) => {
-    if (!force && Date.now() - lastFlush < 1500) return;
-    lastFlush = Date.now();
-    await writeRun(runId, { log: lines.join("\n") }).catch(() => {
-    });
-  };
-  const log = (line) => {
-    lines.push(`${IST()} ${line}`);
-    void flush();
-  };
-  const alert = (a) => {
-    alerts.push(a);
-    log(`[${a.level}] ${a.source}: ${a.message}`);
-  };
-  const sources = [
-    ["job_api", () => fetchApis(p, s, log)],
-    ["careers", () => fetchBoards(p, log)]
-  ];
-  try {
-    log(`Run started for ${p.name}`);
-    for (const [key, fetcher] of sources) {
-      if (only && !only.includes(key)) continue;
-      if (!p.prefs.sources[key]) continue;
-      log(`\u2014 ${key}`);
-      try {
-        const jobs = await fetcher();
-        const r = await saveFound(p, jobs);
-        stats.fetched += jobs.length;
-        stats.new += r.fresh;
-        stats.filtered += r.filtered;
-        stats[`src_${key}`] = jobs.length;
-        log(`${key}: ${jobs.length} fetched, ${r.fresh} new`);
-      } catch (e) {
-        status = "partial";
-        alert({ level: "warn", source: key, message: e instanceof SourceNotConfigured ? e.message : `failed: ${e?.message ?? e}` });
+// src/shared/match.ts
+import { z as z2 } from "npm:zod@4.6.7";
+var MatchSchema = z2.object({
+  score: z2.number().int().describe("0-100 fit score"),
+  reasons: z2.array(z2.string()).describe("2-4 short reasons it fits, citing concrete overlap"),
+  red_flags: z2.array(z2.string()).describe("0-3 concerns: gaps, seniority mismatch, location, shift, thin posting"),
+  matched_skills: z2.array(z2.string()).describe("Up to 8 requirements of the posting the candidate clearly has (short labels)"),
+  missing_skills: z2.array(z2.string()).describe("Up to 6 requirements of the posting the candidate lacks or does not show (short labels); empty if none"),
+  cover_note: z2.string().describe("Tailored note, 90-140 words, first person, plain text, no placeholders")
+});
+var MATCH_SYSTEM = `You screen job postings for one candidate and write a short note they can paste into an application.
+
+Scoring guide:
+- 85-100: role, core skills, seniority and location all line up; candidate could interview tomorrow.
+- 65-84: strong overlap with one or two gaps.
+- 45-64: adjacent role or partial skill overlap.
+- 0-44: different function, seniority far off, or mostly unrelated skills.
+Judge on the posting's actual requirements, not its title alone. If the description is very short, score on what is there and add a red flag that the posting is thin.
+Salary below the candidate's expectation is a red flag, never by itself a reason to lower the score.
+
+Cover note: first person, specific to this posting, 2-3 directly relevant facts from the candidate profile, no greeting or sign-off, no invented facts, no placeholders like [Company].`;
+function candidateBlock(p) {
+  const pr = p.profile;
+  return JSON.stringify(
+    {
+      name: pr.name,
+      headline: pr.headline,
+      current_title: pr.current_title,
+      years_experience: pr.years_experience,
+      current_location: pr.current_location,
+      skills: pr.skills,
+      tools_and_modules: pr.tools_and_modules,
+      domains: pr.domains,
+      past_titles: pr.past_titles,
+      highlights: pr.highlights,
+      summary: pr.summary,
+      preferences: {
+        target_titles: p.prefs.target_titles,
+        locations: p.prefs.locations,
+        remote_ok: p.prefs.remote_ok,
+        min_salary_lpa: p.prefs.min_salary_lpa
       }
-    }
-    log(`Done: ${stats.new} new, ${stats.filtered} filtered out`);
-  } catch (e) {
-    status = "error";
-    alert({ level: "stop", source: "run", message: e?.message ?? String(e) });
-  } finally {
-    await writeRun(runId, { log: lines.join("\n"), status, stats, alerts, finished: true });
-  }
+    },
+    null,
+    1
+  );
+}
+var postingText = (j) => `Title: ${j.title}
+Company: ${j.company}
+Location: ${j.location || "-"}
+Salary: ${j.salary || "not listed"}
+Posted: ${j.posted_at || "-"}
+
+Description:
+${(j.description || "(none provided)").slice(0, 12e3)}`;
+function relevance(p, j) {
+  const words = (t) => t.toLowerCase().split(/[^a-z0-9/+#.]+/).filter((w) => w.length > 2);
+  const title = new Set(words(j.title));
+  const body = new Set(words(`${j.title} ${j.description}`));
+  const titleTerms = new Set(p.prefs.target_titles.flatMap(words));
+  const skillTerms = new Set([...p.profile?.skills ?? [], ...p.profile?.tools_and_modules ?? []].flatMap(words));
+  const hit = (set, terms) => terms.size ? [...terms].filter((t) => set.has(t)).length / terms.size : 0;
+  return 0.6 * hit(title, titleTerms) + 0.4 * hit(body, skillTerms);
 }
 
 // server/llm.ts
 import Anthropic from "npm:@anthropic-ai/sdk@1.12.0";
 import { zodOutputFormat } from "npm:@anthropic-ai/sdk@1.12.0/helpers/zod";
-import { z as z2 } from "npm:zod@4.6.7";
+import { z as z3 } from "npm:zod@4.6.7";
 var LLMNotConfigured = class extends Error {
 };
 var cooldown = /* @__PURE__ */ new Map();
@@ -764,7 +792,7 @@ var Llm = class _Llm {
     return this.parseCompat(sys, user.text, schema, o);
   }
   async test() {
-    const Ok = z2.object({ ok: z2.boolean() });
+    const Ok = z3.object({ ok: z3.boolean() });
     const r = await this.parse("You are a health check.", { text: 'Return {"ok": true}.' }, Ok, { effort: "low", maxTokens: 200 });
     if (!r.ok) throw new Error("unexpected reply");
     return this.engine === "anthropic" ? `Claude works (${this.model}).` : `AI server works (model ${this.model}${lastVia ? `, served by ${lastVia}` : ""}).`;
@@ -824,7 +852,7 @@ var Llm = class _Llm {
     const sys = system.map((b) => b.text).join("\n\n") + `
 
 Respond with ONLY a JSON object (no prose, no code fences) that matches this JSON Schema:
-${JSON.stringify(z2.toJSONSchema(schema))}`;
+${JSON.stringify(z3.toJSONSchema(schema))}`;
     const messages = [
       { role: "system", content: sys },
       { role: "user", content }
@@ -876,6 +904,118 @@ function extractJson(text) {
   const end = Math.max(t.lastIndexOf("}"), t.lastIndexOf("]"));
   if (start >= 0 && end > start) t = t.slice(start, end + 1);
   return JSON.parse(t);
+}
+
+// server/matcher.ts
+async function scoreJob(llm, p, j) {
+  const system = [{ text: MATCH_SYSTEM }, { text: "CANDIDATE PROFILE\n" + candidateBlock(p), cache: true }];
+  return llm.parse(system, { text: postingText(j) }, MatchSchema, { maxTokens: 4e3 });
+}
+async function scoreAndSave(llm, p, j) {
+  const m = await scoreJob(llm, p, j);
+  const score = Math.max(0, Math.min(100, Math.round(m.score)));
+  await saveScore(p.id, j.id, { score, reasons: m.reasons, red_flags: m.red_flags, cover_note: m.cover_note, model: llm.model, matched: m.matched_skills.slice(0, 8), missing: m.missing_skills.slice(0, 6) });
+  return score;
+}
+async function scorePending(p, deadline, log, limit = 60) {
+  if (!p.profile) throw new Error("profile has no parsed resume yet");
+  const llm = await Llm.load();
+  const pool = await unscoredJobs(p.id, 400);
+  const queue = pool.map((j) => ({ j, r: relevance(p, j) })).sort((a, b) => b.r - a.r).slice(0, limit).map((x) => x.j);
+  let scored = 0;
+  let failed = 0;
+  const worker = async () => {
+    for (let j = queue.shift(); j && Date.now() < deadline - 35e3; j = queue.shift()) {
+      try {
+        const s = await scoreAndSave(llm, p, j);
+        scored++;
+        log(`scored ${String(s).padStart(3)}  ${j.title.slice(0, 60)} @ ${j.company.slice(0, 30)}`);
+      } catch (e) {
+        if (e instanceof LLMNotConfigured) throw e;
+        failed++;
+        log(`score failed for "${j.title}": ${e?.message ?? e}`);
+      }
+    }
+  };
+  const n = llm.engine === "anthropic" ? 3 : Math.max(1, (await getSettings()).llm.concurrency);
+  await Promise.all(Array.from({ length: n }, () => worker()));
+  return { scored, score_failed: failed, left: Math.max(0, pool.length - scored - failed) };
+}
+async function rescoreOne(p, j) {
+  if (!p.profile) throw new Error("Add a resume first");
+  await scoreAndSave(await Llm.load(), p, j);
+}
+
+// server/runner.ts
+var IST = () => (/* @__PURE__ */ new Date()).toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour12: false });
+var RUN_BUDGET_MS = 14e4;
+async function runProfile(p, runId, only) {
+  const started = Date.now();
+  const s = await getSettings();
+  const lines = [];
+  const alerts = [];
+  const stats = { fetched: 0, new: 0, filtered: 0, scored: 0, score_failed: 0 };
+  let status = "ok";
+  let lastFlush = 0;
+  const flush = async (force = false) => {
+    if (!force && Date.now() - lastFlush < 1500) return;
+    lastFlush = Date.now();
+    await writeRun(runId, { log: lines.join("\n") }).catch(() => {
+    });
+  };
+  const log = (line) => {
+    lines.push(`${IST()} ${line}`);
+    void flush();
+  };
+  const alert = (a) => {
+    alerts.push(a);
+    log(`[${a.level}] ${a.source}: ${a.message}`);
+  };
+  const sources = [
+    ["job_api", () => fetchApis(p, s, log)],
+    ["careers", () => fetchBoards(p, log)]
+  ];
+  try {
+    log(`Run started for ${p.name}`);
+    for (const [key, fetcher] of sources) {
+      if (only && !only.includes(key)) continue;
+      if (!p.prefs.sources[key]) continue;
+      log(`\u2014 ${key}`);
+      try {
+        const jobs = await fetcher();
+        const r = await saveFound(p, jobs);
+        stats.fetched += jobs.length;
+        stats.new += r.fresh;
+        stats.filtered += r.filtered;
+        stats[`src_${key}`] = jobs.length;
+        log(`${key}: ${jobs.length} fetched, ${r.fresh} new`);
+      } catch (e) {
+        status = "partial";
+        alert({ level: "warn", source: key, message: e instanceof SourceNotConfigured ? e.message : `failed: ${e?.message ?? e}` });
+      }
+    }
+    log("\u2014 scoring");
+    let strong = 0;
+    try {
+      const r = await scorePending(p, started + RUN_BUDGET_MS, (l) => {
+        if (/^scored\s+(\d+)/.test(l) && Number(l.match(/^scored\s+(\d+)/)[1]) >= p.prefs.min_score) strong++;
+        log(l);
+      });
+      stats.scored = r.scored;
+      stats.score_failed = r.score_failed;
+      if (r.left) log(`${r.left} more to score \u2014 they're scored in the background over the next few minutes`);
+    } catch (e) {
+      status = "partial";
+      alert({ level: "warn", source: "scoring", message: e instanceof LLMNotConfigured ? e.message : e?.message ?? String(e) });
+    }
+    stats.strong_today = strong;
+    log(`Done: ${stats.new} new, ${stats.filtered} filtered out, ${stats.scored} scored, ${strong} at or above ${p.prefs.min_score}`);
+  } catch (e) {
+    status = "error";
+    alert({ level: "stop", source: "run", message: e?.message ?? String(e) });
+  } finally {
+    await writeRun(runId, { log: lines.join("\n"), status, stats, alerts, finished: true });
+  }
 }
 
 // server/resume.ts
@@ -972,6 +1112,13 @@ var actions = {
     EdgeRuntime.waitUntil(runProfile(p, runId, Array.isArray(only) ? only : void 0));
     return runId;
   },
+  async "matches.rescore"({ pid, jid }) {
+    const p = await getProfile(Number(pid));
+    const j = await getJob(String(jid));
+    if (!p || !j) throw new HttpError(404, "Job or profile not found");
+    await rescoreOne(p, j);
+    return true;
+  },
   // ---- AI engine
   async "llm.models"() {
     return (await Llm.load()).models();
@@ -987,10 +1134,8 @@ var istNow = () => {
 async function cronTick() {
   const s = await getSettings();
   const now = istNow();
-  if (!s.schedule.enabled) return { skipped: "schedule off" };
-  if (s.schedule.weekdaysOnly && (now.weekday === 0 || now.weekday === 6)) return { skipped: "weekend" };
-  if (now.time < s.schedule.time) return { skipped: `before ${s.schedule.time} IST` };
-  for (const p of await listProfiles(true)) {
+  const due = s.schedule.enabled && !(s.schedule.weekdaysOnly && (now.weekday === 0 || now.weekday === 6)) && now.time >= s.schedule.time;
+  for (const p of due ? await listProfiles(true) : []) {
     if (!p.profile) continue;
     const k = `daily:${p.id}`;
     if (await kvGet(k) === now.day) continue;
@@ -1000,7 +1145,19 @@ async function cronTick() {
     EdgeRuntime.waitUntil(runProfile(p, runId));
     return { started: p.name, runId };
   }
-  return { done: "everyone checked today" };
+  for (const pid of await profilesWithUnscored()) {
+    if (await liveRun(pid)) continue;
+    const p = await getProfile(pid);
+    if (!p?.profile || !p.active) continue;
+    const lockKey = `scoring:${pid}`;
+    const lock = Number(await kvGet(lockKey) || 0);
+    if (Date.now() - lock < RUN_BUDGET_MS + 1e4) continue;
+    await kvSet(lockKey, String(Date.now()));
+    EdgeRuntime.waitUntil(scorePending(p, Date.now() + RUN_BUDGET_MS, () => {
+    }).catch((e) => console.error("tick scoring", e)));
+    return { scoring: p.name };
+  }
+  return { done: "everyone checked today, nothing waiting to score" };
 }
 Deno.serve(async (req) => {
   reqHeaders = req.headers.get("access-control-request-headers") ?? "";

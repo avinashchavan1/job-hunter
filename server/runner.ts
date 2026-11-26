@@ -1,13 +1,18 @@
 // One "run" for one person: collect from every enabled source, dedupe, filter, save, record.
-// Scoring is added in the next step.
 import type { Profile, RunAlert, SourceKey } from '../src/shared/types'
 import { getSettings } from './ctx'
 import { fetchApis, fetchBoards, SourceNotConfigured } from './sources'
 import { saveFound, writeRun } from './store'
+import { scorePending } from './matcher'
+import { LLMNotConfigured } from './llm'
 
 const IST = (): string => new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour12: false })
 
+/** Free plan: ~150 s per invocation. Leave headroom to write the final log. */
+export const RUN_BUDGET_MS = 140_000
+
 export async function runProfile(p: Profile, runId: number, only?: SourceKey[]): Promise<void> {
+  const started = Date.now()
   const s = await getSettings()
   const lines: string[] = []
   const alerts: RunAlert[] = []
@@ -51,7 +56,22 @@ export async function runProfile(p: Profile, runId: number, only?: SourceKey[]):
         alert({ level: 'warn', source: key, message: e instanceof SourceNotConfigured ? e.message : `failed: ${e?.message ?? e}` })
       }
     }
-    log(`Done: ${stats.new} new, ${stats.filtered} filtered out`)
+    log('— scoring')
+    let strong = 0
+    try {
+      const r = await scorePending(p, started + RUN_BUDGET_MS, (l) => {
+        if (/^scored\s+(\d+)/.test(l) && Number(l.match(/^scored\s+(\d+)/)![1]) >= p.prefs.min_score) strong++
+        log(l)
+      })
+      stats.scored = r.scored
+      stats.score_failed = r.score_failed
+      if (r.left) log(`${r.left} more to score — they're scored in the background over the next few minutes`)
+    } catch (e: any) {
+      status = 'partial'
+      alert({ level: 'warn', source: 'scoring', message: e instanceof LLMNotConfigured ? e.message : e?.message ?? String(e) })
+    }
+    stats.strong_today = strong
+    log(`Done: ${stats.new} new, ${stats.filtered} filtered out, ${stats.scored} scored, ${strong} at or above ${p.prefs.min_score}`)
   } catch (e: any) {
     status = 'error'
     alert({ level: 'stop', source: 'run', message: e?.message ?? String(e) })

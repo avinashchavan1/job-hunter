@@ -142,7 +142,7 @@ const seen = new Map<number, { pid: number; lines: number }>() // run id -> line
 let timer: ReturnType<typeof setTimeout> | null = null
 
 async function liveRuns(): Promise<any[]> {
-  const since = new Date(Date.now() - 10 * 60_000).toISOString()
+  const since = new Date(Date.now() - 4 * 60_000).toISOString()
   return must(await sb.from('jh_runs').select('id, profile_id, status, log').eq('status', 'running').gte('started_at', since)) as any[]
 }
 
@@ -240,7 +240,13 @@ export const webApi: Api = {
       if (notes !== undefined) row.notes = notes
       must(await sb.from('jh_applications').upsert(row))
     },
-    rescore: async () => NOT_YET('Re-scoring')
+    rescore: async (pid, jid) => {
+      await call('matches.rescore', { pid, jid })
+      const r = must(await sb.from('jh_matches').select('*').eq('profile_id', pid).eq('id', jid).maybeSingle()) as any
+      if (!r) return null
+      const { profile_id: _p, first_seen: _f, last_seen: _l, ...m } = r
+      return m as Match
+    }
   },
   stats: async (pid) => {
     const midnight = new Date()

@@ -3,8 +3,9 @@
 import { DEFAULT_PREFS, type ParsedProfile, type Prefs } from '../src/shared/types'
 import { contactFromText, mergeParsed, RESUME_SYSTEM, ResumeSchema, resumePrompt } from '../src/shared/resume'
 import { admin, getSettings, HttpError, requireMember, secret, secretStatus } from './ctx'
-import { runProfile } from './runner'
-import { getProfile, kvGet, kvSet, listProfiles, liveRun, startRun } from './store'
+import { RUN_BUDGET_MS, runProfile } from './runner'
+import { rescoreOne, scorePending } from './matcher'
+import { getJob, getProfile, kvGet, kvSet, listProfiles, liveRun, profilesWithUnscored, startRun } from './store'
 import { Llm, LLMNotConfigured } from './llm'
 import { resumeText } from './resume'
 
@@ -94,6 +95,14 @@ const actions: Record<string, Handler> = {
     return runId
   },
 
+  async 'matches.rescore'({ pid, jid }) {
+    const p = await getProfile(Number(pid))
+    const j = await getJob(String(jid))
+    if (!p || !j) throw new HttpError(404, 'Job or profile not found')
+    await rescoreOne(p, j)
+    return true
+  },
+
   // ---- AI engine
   async 'llm.models'() {
     return (await Llm.load()).models()
@@ -114,10 +123,8 @@ const istNow = (): { day: string; time: string; weekday: number } => {
 async function cronTick(): Promise<unknown> {
   const s = await getSettings()
   const now = istNow()
-  if (!s.schedule.enabled) return { skipped: 'schedule off' }
-  if (s.schedule.weekdaysOnly && (now.weekday === 0 || now.weekday === 6)) return { skipped: 'weekend' }
-  if (now.time < s.schedule.time) return { skipped: `before ${s.schedule.time} IST` }
-  for (const p of await listProfiles(true)) {
+  const due = s.schedule.enabled && !(s.schedule.weekdaysOnly && (now.weekday === 0 || now.weekday === 6)) && now.time >= s.schedule.time
+  for (const p of due ? await listProfiles(true) : []) {
     if (!p.profile) continue
     const k = `daily:${p.id}`
     if ((await kvGet(k)) === now.day) continue
@@ -127,7 +134,19 @@ async function cronTick(): Promise<unknown> {
     EdgeRuntime.waitUntil(runProfile(p, runId))
     return { started: p.name, runId }
   }
-  return { done: 'everyone checked today' }
+  // nobody due: keep scoring whatever is waiting (one person per tick)
+  for (const pid of await profilesWithUnscored()) {
+    if (await liveRun(pid)) continue
+    const p = await getProfile(pid)
+    if (!p?.profile || !p.active) continue
+    const lockKey = `scoring:${pid}`
+    const lock = Number((await kvGet(lockKey)) || 0)
+    if (Date.now() - lock < RUN_BUDGET_MS + 10_000) continue // a previous tick is still scoring
+    await kvSet(lockKey, String(Date.now()))
+    EdgeRuntime.waitUntil(scorePending(p, Date.now() + RUN_BUDGET_MS, () => {}).catch((e) => console.error('tick scoring', e)))
+    return { scoring: p.name }
+  }
+  return { done: 'everyone checked today, nothing waiting to score' }
 }
 
 Deno.serve(async (req) => {

@@ -158,9 +158,35 @@ export async function writeRun(id: number, f: { log?: string; status?: string; s
   if (f.finished) row.finished_at = new Date().toISOString()
   must(await admin().from('jh_runs').update(row).eq('id', id), 'run')
 }
-/** A run counts as live for 10 minutes; older "running" rows were cut off by the platform. */
+/** A run counts as live for 4 minutes (the platform stops any invocation after ~150 s); older "running" rows were cut off by the platform. */
 export async function liveRun(pid: number): Promise<number | null> {
-  const since = new Date(Date.now() - 10 * 60_000).toISOString()
+  const since = new Date(Date.now() - 4 * 60_000).toISOString()
+  // runs the platform cut off (time limit, redeploy) never finish: close them so Activity shows what happened
+  await admin()
+    .from('jh_runs')
+    .update({ status: 'error', finished_at: new Date().toISOString(), alerts: [{ level: 'warn', source: 'run', message: 'Stopped before finishing (server time limit or update). Jobs found so far were kept.' }] })
+    .eq('profile_id', pid).eq('status', 'running').lt('started_at', since)
   const r = must(await admin().from('jh_runs').select('id').eq('profile_id', pid).eq('status', 'running').gte('started_at', since).limit(1), 'runs')
   return r.length ? Number((r[0] as any).id) : null
+}
+
+// ---------------------------------------------------------------- scores
+
+export async function unscoredJobs(pid: number, limit: number): Promise<Job[]> {
+  const rows = must(
+    await admin().from('jh_matches').select('id, title, company, location, salary, url, description, source, posted_at, external_id').eq('profile_id', pid).is('filter_reason', null).is('score', null).order('found_at', { ascending: false }).limit(limit),
+    'unscored'
+  )
+  return rows as Job[]
+}
+export async function getJob(id: string): Promise<Job | null> {
+  return (must(await admin().from('jh_jobs').select('*').eq('id', id).maybeSingle(), 'job') as Job | null) ?? null
+}
+export async function saveScore(pid: number, jid: string, s: { score: number; reasons: string[]; red_flags: string[]; cover_note: string; model: string; matched: string[]; missing: string[] }): Promise<void> {
+  must(await admin().from('jh_scores').upsert({ profile_id: pid, job_id: jid, ...s, scored_at: new Date().toISOString() }), 'save score')
+}
+/** People who still have jobs waiting for a score. */
+export async function profilesWithUnscored(): Promise<number[]> {
+  const rows = must(await admin().from('jh_matches').select('profile_id').is('filter_reason', null).is('score', null).limit(500), 'pending')
+  return [...new Set(rows.map((r: any) => Number(r.profile_id)))]
 }
