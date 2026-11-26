@@ -1,14 +1,15 @@
 import { DragEvent, ReactNode, useEffect, useMemo, useState } from 'react'
-import { BellRing, Building2, ExternalLink, MapPin, StickyNote } from 'lucide-react'
+import { BellRing, ExternalLink, GraduationCap, StickyNote, X } from 'lucide-react'
+import { InterviewPrep } from '../components/Assist'
 import type { Match, Profile, Status } from '@shared/types'
 import { ScoreRing, Spinner, cx, timeAgo } from '../ui'
 
 const COLUMNS: { key: Status; title: string; hint: string; tone: string }[] = [
-  { key: 'shortlisted', title: 'Shortlisted', hint: 'Apply to these next', tone: 'border-t-brand-500' },
-  { key: 'applied', title: 'Applied', hint: 'Waiting to hear back', tone: 'border-t-sky-400' },
-  { key: 'interview', title: 'Interview', hint: 'In process', tone: 'border-t-amber-400' },
-  { key: 'offer', title: 'Offer', hint: '🎉', tone: 'border-t-emerald-400' },
-  { key: 'rejected', title: 'Closed', hint: 'Rejected / no reply', tone: 'border-t-rose-400' }
+  { key: 'shortlisted', title: 'Shortlisted', hint: 'Apply to these next', tone: '' },
+  { key: 'applied', title: 'Applied', hint: 'Waiting to hear back', tone: '' },
+  { key: 'interview', title: 'Interview', hint: 'In process', tone: '' },
+  { key: 'offer', title: 'Offer', hint: 'Congratulations', tone: '' },
+  { key: 'rejected', title: 'Closed', hint: 'Rejected / no reply', tone: '' }
 ]
 
 const FOLLOW_UP_DAYS = 7
@@ -17,6 +18,7 @@ export function BoardPage({ profile }: { profile: Profile }): ReactNode {
   const [rows, setRows] = useState<Match[] | null>(null)
   const [drag, setDrag] = useState<string | null>(null)
   const [over, setOver] = useState<Status | null>(null)
+  const [prep, setPrep] = useState<Match | null>(null)
 
   useEffect(() => {
     setRows(null)
@@ -51,8 +53,7 @@ export function BoardPage({ profile }: { profile: Profile }): ReactNode {
   return (
     <div className="flex h-full flex-col px-8 py-6">
       <header className="mb-5">
-        <p className="text-xs font-medium uppercase tracking-wider text-brand-600 dark:text-brand-400">Tracker</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Applications</h1>
+        <h1 className="h-page">Tracker</h1>
         <p className="mt-1 text-sm text-ink-400">
           Drag cards between columns. Shortlist or mark jobs applied from Matches and they appear here.
           {total === 0 && ' Nothing tracked yet.'}
@@ -65,7 +66,7 @@ export function BoardPage({ profile }: { profile: Profile }): ReactNode {
             onDragOver={(e) => { e.preventDefault(); setOver(c.key) }}
             onDragLeave={() => setOver(null)}
             onDrop={(e) => onDrop(e, c.key)}
-            className={cx('flex min-h-0 flex-col rounded-2xl border border-t-2 border-line bg-ink-900/60 transition', c.tone, over === c.key && 'bg-brand-500/5 ring-2 ring-brand-500/30')}
+            className={cx('flex min-h-0 flex-col rounded-lg bg-ink-850/60 transition', over === c.key && 'ring-2 ring-ink-400/40')}
           >
             <div className="flex items-baseline justify-between px-3 pb-2 pt-3">
               <div>
@@ -76,33 +77,46 @@ export function BoardPage({ profile }: { profile: Profile }): ReactNode {
             </div>
             <div className="min-h-0 flex-1 space-y-2 overflow-auto px-2 pb-3">
               {byCol[c.key].map((m) => (
-                <Card key={m.id} m={m} onDragStart={(e) => { e.dataTransfer.setData('text/plain', m.id); setDrag(m.id) }} onNotes={(n) => move(m.id, m.status, n)} />
+                <Card key={m.id} m={m} onPrep={() => setPrep(m)} onDragStart={(e) => { e.dataTransfer.setData('text/plain', m.id); setDrag(m.id) }} onNotes={(n) => move(m.id, m.status, n)} />
               ))}
             </div>
           </div>
         ))}
       </div>
+      {prep && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/30 p-8" onClick={() => setPrep(null)}>
+          <div className="card max-h-full w-full max-w-2xl overflow-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-base font-semibold">Interview prep</h2>
+                <p className="text-xs text-ink-400">{prep.title} · {prep.company}</p>
+              </div>
+              <button className="rounded-md p-1 text-ink-400 hover:bg-hover" onClick={() => setPrep(null)}><X size={16} /></button>
+            </div>
+            <InterviewPrep profileId={profile.id} jobId={prep.id} />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
-function Card({ m, onDragStart, onNotes }: { m: Match; onDragStart: (e: DragEvent) => void; onNotes: (n: string) => void }): ReactNode {
+function Card({ m, onDragStart, onNotes, onPrep }: { m: Match; onDragStart: (e: DragEvent) => void; onNotes: (n: string) => void; onPrep: () => void }): ReactNode {
   const [editing, setEditing] = useState(false)
   const [notes, setNotes] = useState(m.notes || '')
   const days = m.status_at ? (Date.now() - new Date(m.status_at).getTime()) / 86400000 : 0
   const followUp = m.status === 'applied' && days >= FOLLOW_UP_DAYS
   return (
-    <div draggable onDragStart={onDragStart} className="cursor-grab rounded-xl border border-line bg-ink-850 p-3 shadow-sm transition hover:border-line-strong active:cursor-grabbing">
+    <div draggable onDragStart={onDragStart} className="cursor-grab rounded-md border border-line bg-ink-900 p-2.5 transition hover:border-line-strong active:cursor-grabbing">
       <div className="flex items-start gap-2.5">
-        <ScoreRing score={m.score} size={34} />
+        <ScoreRing score={m.score} size={30} />
         <div className="min-w-0 flex-1">
           <div className="line-clamp-2 text-[13px] font-medium leading-snug">{m.title}</div>
-          <div className="mt-1 flex items-center gap-1 truncate text-[11px] text-ink-400"><Building2 size={11} />{m.company}</div>
-          {m.location && <div className="flex items-center gap-1 truncate text-[11px] text-ink-400"><MapPin size={11} />{m.location}</div>}
+          <div className="mt-0.5 truncate text-[11px] text-ink-400">{[m.company, m.location].filter(Boolean).join(' · ')}</div>
         </div>
       </div>
       {followUp && (
-        <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-amber-400/10 px-2 py-1 text-[11px] text-amber-700 dark:text-amber-300">
+        <div className="mt-2 flex items-center gap-1.5 rounded-md border border-amber-500/30 px-2 py-1 text-[11px] text-amber-700 dark:text-amber-300">
           <BellRing size={12} /> Applied {Math.floor(days)}d ago — follow up?
         </div>
       )}
@@ -122,6 +136,7 @@ function Card({ m, onDragStart, onNotes }: { m: Match; onDragStart: (e: DragEven
       <div className="mt-2 flex items-center justify-between text-[11px] text-ink-400">
         <span>{m.status_at ? timeAgo(m.status_at) : ''}</span>
         <span className="flex gap-1">
+          {(m.status === 'interview' || m.status === 'applied') && <button className="rounded p-1 hover:bg-hover hover:text-ink-100" title="Interview prep" onClick={onPrep}><GraduationCap size={13} /></button>}
           <button className="rounded p-1 hover:bg-hover hover:text-ink-100" title="Notes" onClick={() => setEditing(true)}><StickyNote size={13} /></button>
           {m.url && <button className="rounded p-1 hover:bg-hover hover:text-ink-100" title="Open posting" onClick={() => window.api.open(m.url)}><ExternalLink size={13} /></button>}
         </span>

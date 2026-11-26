@@ -5,9 +5,10 @@ import { basename, extname, join } from 'path'
 import { AppSettings, DEFAULT_PREFS, Prefs, Profile, RunProgress, SecretKey, SourceKey, Status } from '../shared/types'
 import * as db from './db'
 import { cooledModels, detectFreeLLMAPI, engineLabel, listCompatModels, llmHealth, modelChain, testEngine } from './llm'
-import { profileDir, slugify } from './paths'
+import { dataDir, profileDir, slugify } from './paths'
 import { parseResume, prefsFromProfile, resumeText } from './resume'
 import { inspect, openForApply } from './autofill'
+import { getPrep, getTailored, interviewPrep, revealFile, tailorResume } from './assist'
 import { isRunning, runProfile } from './runner'
 import { rescoreOne } from './matcher'
 import { nextRunAt } from './scheduler'
@@ -167,6 +168,16 @@ export function registerIpc(): void {
     if (!p) throw new Error('profile not found')
     await openForApply(p, jobId)
     return true
+  })
+  // per-job AI helpers
+  h('assist:tailor', (pid: number, jid: string) => tailorResume(db.getProfile(pid)!, jid))
+  h('assist:tailored', (pid: number, jid: string) => getTailored(pid, jid))
+  h('assist:prep', (pid: number, jid: string) => interviewPrep(db.getProfile(pid)!, jid))
+  h('assist:getPrep', (pid: number, jid: string) => getPrep(pid, jid))
+  h('file:reveal', (path: string, open?: boolean) => {
+    // only files the app itself wrote (inside its data folder)
+    if (!path.startsWith(dataDir())) throw new Error('not an app file')
+    revealFile(path, !!open)
   })
   h('autofill:inspect', async (pid: number) => inspect(db.getProfile(pid)!))
   // contact details read locally from the resume file (regex only — nothing is sent anywhere)

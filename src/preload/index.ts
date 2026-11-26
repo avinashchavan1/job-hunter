@@ -1,5 +1,5 @@
-import { contextBridge, ipcRenderer } from 'electron'
-import type { AppSettings, Match, Prefs, Profile, ProfileStats, Run, RunProgress, SecretKey, SourceKey, Status, Contact } from '../shared/types'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import type { AppSettings, Match, Prefs, Profile, ProfileStats, Run, RunProgress, SecretKey, SourceKey, Status, Contact, Tailored, Prep } from '../shared/types'
 
 const inv = <T>(ch: string, ...a: unknown[]): Promise<T> => ipcRenderer.invoke(ch, ...a) as Promise<T>
 
@@ -63,6 +63,15 @@ const api = {
   autofill: {
     open: (pid: number, jobId: string) => inv<boolean>('autofill:open', pid, jobId)
   },
+  assist: {
+    tailor: (pid: number, jid: string) => inv<Tailored>('assist:tailor', pid, jid),
+    tailored: (pid: number, jid: string) => inv<Tailored | null>('assist:tailored', pid, jid),
+    prep: (pid: number, jid: string) => inv<Prep>('assist:prep', pid, jid),
+    getPrep: (pid: number, jid: string) => inv<Prep | null>('assist:getPrep', pid, jid)
+  },
+  reveal: (path: string, open?: boolean) => inv<void>('file:reveal', path, open),
+  /** Real path of a file dropped onto the window. */
+  pathForFile: (f: File) => webUtils.getPathForFile(f),
   open: (url: string) => inv<void>('shell:open', url)
 }
 

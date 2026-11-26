@@ -3,50 +3,36 @@ import { Check, Copy, Loader2, X } from 'lucide-react'
 
 export const cx = (...c: (string | false | null | undefined)[]): string => c.filter(Boolean).join(' ')
 
-export function scoreTone(s: number | null): { ring: string; text: string; bg: string } {
-  if (s == null) return { ring: '#343b4d', text: 'text-ink-400', bg: 'bg-ink-700/40' }
-  if (s >= 80) return { ring: '#34d399', text: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-400/10' }
-  if (s >= 65) return { ring: '#8b9dff', text: 'text-brand-600 dark:text-brand-400', bg: 'bg-brand-500/10' }
-  if (s >= 50) return { ring: '#fbbf24', text: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-400/10' }
-  return { ring: '#f87171', text: 'text-rose-700 dark:text-rose-300', bg: 'bg-rose-400/10' }
+export function scoreTone(s: number | null): { text: string; bar: string } {
+  if (s == null) return { text: 'text-ink-400', bar: 'bg-ink-600' }
+  if (s >= 75) return { text: 'text-emerald-700 dark:text-emerald-400', bar: 'bg-emerald-600 dark:bg-emerald-400' }
+  if (s >= 50) return { text: 'text-ink-100', bar: 'bg-ink-300' }
+  return { text: 'text-ink-400', bar: 'bg-ink-600' }
 }
 
-export function ScoreRing({ score, size = 52 }: { score: number | null; size?: number }): ReactNode {
-  const r = size / 2 - 4
-  const c = 2 * Math.PI * r
+/** Plain score: the number plus a thin bar. (Name kept for older call sites.) */
+export function ScoreRing({ score, size = 44 }: { score: number | null; size?: number }): ReactNode {
   const t = scoreTone(score)
   return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle cx={size / 2} cy={size / 2} r={r} stroke="#232938" strokeWidth={4} fill="none" />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={r}
-          stroke={t.ring}
-          strokeWidth={4}
-          fill="none"
-          strokeLinecap="round"
-          strokeDasharray={c}
-          strokeDashoffset={c - (c * (score ?? 0)) / 100}
-          style={{ transition: 'stroke-dashoffset .6s ease' }}
-        />
-      </svg>
-      <div className={cx('absolute inset-0 grid place-items-center text-sm font-semibold tabular-nums', t.text)}>{score ?? '–'}</div>
+    <div className="shrink-0 text-center" style={{ width: size }} title={score == null ? 'Not scored yet' : `Fit score ${score}/100`}>
+      <div className={cx('text-[15px] font-semibold tabular-nums leading-none', t.text)}>{score ?? '–'}</div>
+      <div className="mx-auto mt-1.5 h-[3px] w-7 overflow-hidden rounded-full bg-ink-700">
+        <div className={cx('h-full rounded-full', t.bar)} style={{ width: `${score ?? 0}%` }} />
+      </div>
     </div>
   )
 }
 
 export function Chip({ children, tone = 'default', onRemove }: { children: ReactNode; tone?: 'default' | 'brand' | 'warn' | 'good' | 'bad'; onRemove?: () => void }): ReactNode {
   const tones = {
-    default: 'bg-ink-700 text-ink-300 border-line',
-    brand: 'bg-brand-500/10 text-brand-600 dark:text-brand-400 border-brand-500/20',
-    warn: 'bg-amber-400/10 text-amber-700 dark:text-amber-300 border-amber-400/20',
-    good: 'bg-emerald-400/10 text-emerald-700 dark:text-emerald-300 border-emerald-400/20',
-    bad: 'bg-rose-400/10 text-rose-700 dark:text-rose-300 border-rose-400/20'
+    default: 'text-ink-300 border-line-strong',
+    brand: 'text-ink-100 border-line-strong',
+    warn: 'text-amber-800 dark:text-amber-300 border-amber-500/40',
+    good: 'text-emerald-800 dark:text-emerald-300 border-emerald-600/35',
+    bad: 'text-rose-800 dark:text-rose-300 border-rose-500/40'
   }
   return (
-    <span className={cx('inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs', tones[tone])}>
+    <span className={cx('inline-flex items-center gap-1 rounded-md border px-1.5 py-px text-[11.5px]', tones[tone])}>
       {children}
       {onRemove && (
         <button onClick={onRemove} className="-mr-0.5 rounded hover:text-ink-100">
@@ -95,7 +81,7 @@ export function Toggle({ checked, onChange, label, hint }: { checked: boolean; o
       <button
         type="button"
         onClick={() => onChange(!checked)}
-        className={cx('relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition', checked ? 'bg-brand-600' : 'bg-ink-600')}
+        className={cx('relative mt-0.5 h-5 w-9 shrink-0 rounded-full transition', checked ? 'bg-emerald-600' : 'bg-ink-600')}
       >
         <span className={cx('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all', checked ? 'left-[18px]' : 'left-0.5')} />
       </button>
@@ -145,11 +131,11 @@ export function Stat({ label, value, sub, icon }: { label: string; value: ReactN
 
 export function Section({ title, desc, children, right }: { title: string; desc?: ReactNode; children: ReactNode; right?: ReactNode }): ReactNode {
   return (
-    <section className="card p-5">
+    <section className="border-t border-line py-6 first:border-t-0 first:pt-0">
       <div className="mb-4 flex items-start justify-between gap-4">
-        <div>
-          <h3 className="text-sm font-semibold">{title}</h3>
-          {desc && <p className="mt-0.5 text-xs text-ink-400">{desc}</p>}
+        <div className="max-w-xl">
+          <h3 className="text-[13px] font-semibold">{title}</h3>
+          {desc && <p className="mt-0.5 text-xs leading-relaxed text-ink-400">{desc}</p>}
         </div>
         {right}
       </div>

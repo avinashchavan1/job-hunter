@@ -14,7 +14,7 @@ const FIELDS: { k: keyof Contact; label: string; placeholder: string; type?: str
   { k: 'portfolio_url', label: 'Website / portfolio', placeholder: 'Optional' }
 ]
 
-export function ContactEditor({ profileId, value, onChange, hasResume }: { profileId: number; value: Contact | undefined; onChange: (c: Contact) => void; hasResume: boolean }): ReactNode {
+export function ContactEditor({ profileId, value, onChange, hasResume, resumeName }: { profileId: number; value: Contact | undefined; onChange: (c: Contact) => void; hasResume: boolean; resumeName?: string }): ReactNode {
   const c = { ...EMPTY_CONTACT, ...(value ?? {}) }
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
@@ -43,6 +43,12 @@ export function ContactEditor({ profileId, value, onChange, hasResume }: { profi
           </div>
         ))}
       </div>
+      {resumeName && c.full_name && !c.full_name.toLowerCase().split(/\s+/).some((w) => w.length > 1 && resumeName.toLowerCase().includes(w)) && (
+        <p className="border-l-2 border-amber-500 pl-3 text-xs text-amber-800 dark:text-amber-300">
+          Full name “{c.full_name}” doesn’t match the resume (“{resumeName}”). Applications and tailored resumes use this field.
+          <button className="ml-2 underline" onClick={() => onChange({ ...c, full_name: resumeName })}>Use “{resumeName}”</button>
+        </p>
+      )}
       <div className="flex items-center gap-3">
         {hasResume && (
           <button className="btn btn-ghost !px-2 !py-1 text-xs" onClick={fromResume} disabled={busy}>

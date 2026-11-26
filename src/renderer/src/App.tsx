@@ -1,18 +1,16 @@
 import { ReactNode, useEffect, useState } from 'react'
 import logo from './assets/logo.png'
-import { Activity, KanbanSquare, History, ListChecks, Plus, Settings, UserRound } from 'lucide-react'
-import { HealthPage } from './pages/HealthPage'
+import { Inbox, KanbanSquare, Plus, Settings, UserRound } from 'lucide-react'
 import { BoardPage } from './pages/BoardPage'
 import type { AppSettings, Profile, SecretKey } from '@shared/types'
 import { llmReady } from './components/AiEngine'
 import { Matches } from './pages/Matches'
 import { ProfilePage } from './pages/ProfilePage'
-import { RunsPage } from './pages/RunsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { Onboarding } from './pages/Onboarding'
 import { Spinner, cx } from './ui'
 
-type Page = 'matches' | 'board' | 'profile' | 'runs' | 'health' | 'settings'
+type Page = 'matches' | 'board' | 'profile' | 'settings'
 
 export default function App(): ReactNode {
   const [profiles, setProfiles] = useState<Profile[] | null>(null)
@@ -70,7 +68,7 @@ export default function App(): ReactNode {
         onDone={async (p) => {
           await refresh()
           setPid(p.id)
-          setPage('profile')
+          setPage('matches')
           setAdding(false)
         }}
       />
@@ -93,38 +91,33 @@ export default function App(): ReactNode {
   }
 
   const nav: { key: Page; label: string; icon: ReactNode }[] = [
-    { key: 'matches', label: 'Matches', icon: <ListChecks size={16} /> },
-    { key: 'board', label: 'Applications', icon: <KanbanSquare size={16} /> },
-    { key: 'profile', label: 'Profile & preferences', icon: <UserRound size={16} /> },
-    { key: 'runs', label: 'Run history', icon: <History size={16} /> },
-    { key: 'health', label: 'Health & quotas', icon: <Activity size={16} /> }
+    { key: 'matches', label: 'Today', icon: <Inbox size={16} /> },
+    { key: 'board', label: 'Tracker', icon: <KanbanSquare size={16} /> },
+    { key: 'profile', label: 'Profile', icon: <UserRound size={16} /> }
   ]
 
   return (
     <div className="flex h-full">
       <aside className="relative flex w-56 shrink-0 flex-col border-r border-line bg-sidebar px-2.5 pb-3 pt-12">
         <div className="drag absolute inset-x-0 top-0 h-10" />
-        <div className="mb-6 flex items-center gap-2.5 px-2">
-          <img src={logo} alt="" className="h-8 w-8" draggable={false} />
-          <div>
-            <div className="text-sm font-semibold">Job Hunter</div>
-            <div className="text-[11px] text-ink-400">You apply. It finds.</div>
-          </div>
+        <div className="mb-5 flex items-center gap-2 px-2">
+          <img src={logo} alt="" className="h-6 w-6" draggable={false} />
+          <div className="text-[13px] font-semibold">Job Hunter</div>
         </div>
 
         <div className="mb-1 flex items-center justify-between px-2">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-ink-400">Profiles</span>
+          <span className="text-[11px] font-medium text-ink-400">People</span>
           <button className="rounded-md p-1 text-ink-400 hover:bg-hover hover:text-ink-100" title="Add profile" onClick={() => setAdding(true)}><Plus size={14} /></button>
         </div>
         <div className="mb-5 space-y-0.5">
           {profiles.map((p) => (
             <button key={p.id} onClick={() => setPid(p.id)}
               className={cx('flex w-full items-center gap-2.5 rounded-md px-2 py-1 text-left text-sm transition', p.id === profile.id ? 'bg-selected text-ink-100' : 'text-ink-300 hover:bg-hover')}>
-              <span className={cx('grid h-6 w-6 place-items-center rounded-full text-[11px] font-semibold', p.id === profile.id ? 'bg-brand-600 text-white' : 'bg-ink-700 text-ink-300')}>
+              <span className={cx('grid h-6 w-6 place-items-center rounded-full text-[11px] font-semibold', p.id === profile.id ? 'bg-ink-100 text-ink-950' : 'bg-ink-700 text-ink-300')}>
                 {p.name.slice(0, 1).toUpperCase()}
               </span>
               <span className="truncate">{p.name}</span>
-              {running.has(p.id) && <span className="ml-auto text-brand-600 dark:text-brand-400"><Spinner size={12} /></span>}
+              {running.has(p.id) && <span className="ml-auto text-ink-400"><Spinner size={12} /></span>}
               {!p.active && <span className="ml-auto text-[10px] text-ink-400">paused</span>}
             </button>
           ))}
@@ -150,16 +143,14 @@ export default function App(): ReactNode {
       <main className="relative flex-1 overflow-auto bg-ink-950">
         <div className="drag sticky top-0 z-10 h-8 bg-ink-950/80 backdrop-blur" />
         {runErr && (
-          <div className="mx-auto mb-2 max-w-6xl px-8">
-            <div className="rounded-xl bg-rose-400/10 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">{runErr}</div>
+          <div className="mx-auto mb-2 max-w-5xl px-8">
+            <div className="rounded-md border border-rose-500/30 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">{runErr}</div>
           </div>
         )}
         {page === 'matches' && <Matches profile={profile} running={isRunning} onRun={run} />}
         {page === 'profile' && <ProfilePage profile={profile} onChange={updateProfile} onDeleted={async () => { const ps = await refresh(); setPid(ps[0]?.id ?? null); setPage('matches') }} />}
-        {page === 'runs' && <RunsPage profile={profile} running={isRunning} />}
         {page === 'board' && <BoardPage profile={profile} />}
-        {page === 'health' && <HealthPage running={running.size > 0} />}
-        {page === 'settings' && <SettingsPage secrets={secrets} setSecrets={setSecrets} />}
+        {page === 'settings' && <SettingsPage secrets={secrets} setSecrets={setSecrets} profile={profile} running={running.size > 0} />}
       </main>
     </div>
   )

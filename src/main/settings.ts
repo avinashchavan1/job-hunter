@@ -14,7 +14,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   browser: { pagesPerSitePerDay: 40, minDelayS: 5, maxDelayS: 20, showWindow: false },
   scoring: { maxJobsPerRun: 60 },
   schedule: { enabled: true, time: '08:30', weekdaysOnly: true },
-  autofill: { linkedin: false },
+  autofill: { linkedin: false, aiAnswers: true },
   notify: true,
   openAtLogin: false
 }

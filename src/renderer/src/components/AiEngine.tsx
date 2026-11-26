@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useState } from 'react'
-import { CheckCircle2, Cpu, Radar, Sparkles, XCircle } from 'lucide-react'
+import { CheckCircle2, Cpu, Radar, XCircle } from 'lucide-react'
 import type { AppSettings, SecretKey } from '@shared/types'
 import { ChipInput, Spinner, cx } from '../ui'
 import { ExtLink, KeyField } from './KeyField'
@@ -40,7 +40,7 @@ export function AiEngine({
   }
 
   const opts = [
-    { key: 'anthropic' as const, title: 'Claude', desc: 'Best scoring & cover notes. Paid per use (Anthropic key).', icon: <Sparkles size={18} /> },
+    { key: 'anthropic' as const, title: 'Claude', desc: 'Best scoring & cover notes. Paid per use (Anthropic key).', icon: <Cpu size={18} /> },
     { key: 'openai_compat' as const, title: 'Free / local AI', desc: 'FreeLLMAPI, Ollama, LM Studio or any OpenAI-compatible server.', icon: <Cpu size={18} /> }
   ]
 
@@ -56,12 +56,12 @@ export function AiEngine({
               if (o.key === 'openai_compat' && !s.llm.baseUrl && detected) setUrl(detected)
             }}
             className={cx(
-              'rounded-2xl border p-4 text-left transition',
-              s.llm.provider === o.key ? 'border-brand-500/60 bg-brand-500/10 ring-4 ring-brand-500/10' : 'border-line hover:border-line-strong'
+              'rounded-lg border p-4 text-left transition',
+              s.llm.provider === o.key ? 'border-ink-100 bg-hover' : 'border-line hover:border-line-strong'
             )}
           >
             <div className="flex items-center gap-2 font-medium">
-              <span className={s.llm.provider === o.key ? 'text-brand-600 dark:text-brand-400' : 'text-ink-400'}>{o.icon}</span>
+              <span className={s.llm.provider === o.key ? 'text-ink-100' : 'text-ink-400'}>{o.icon}</span>
               {o.title}
             </div>
             <p className="mt-1 text-xs text-ink-400">{o.desc}</p>
@@ -85,7 +85,7 @@ export function AiEngine({
       ) : (
         <>
           {detected && (
-            <div className="flex items-center gap-2 rounded-xl bg-emerald-400/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
+            <div className="flex items-center gap-2 rounded-md bg-emerald-400/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-300">
               <Radar size={14} /> FreeLLMAPI detected on this computer ({detected})
               {s.llm.baseUrl !== detected && (
                 <button className="ml-auto underline" onClick={() => { setUrl(detected); void setLlm({ baseUrl: detected, model: 'auto:smart' }) }}>Use it</button>
@@ -129,7 +129,7 @@ export function AiEngine({
               <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-ink-400">
                 Free picks:
                 {models.filter((m) => m.endsWith(':free') && m !== s.llm.model && !(s.llm.fallbackModels ?? []).includes(m)).slice(0, 6).map((m) => (
-                  <button key={m} className="rounded-lg border border-dashed border-line-strong px-2 py-0.5 hover:border-brand-500/50 hover:text-brand-600 dark:hover:text-brand-400"
+                  <button key={m} className="rounded-lg border border-dashed border-line-strong px-2 py-0.5 hover:border-ink-400 hover:text-ink-100"
                     onClick={() => setLlm({ fallbackModels: [...(s.llm.fallbackModels ?? []), m] })}>+ {m}</button>
                 ))}
               </div>
@@ -143,7 +143,7 @@ export function AiEngine({
               </span>
             )}
           </div>
-          <p className="rounded-xl bg-amber-400/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-200">
+          <p className="rounded-md bg-amber-400/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-200">
             Free models score less consistently than Claude, and resumes/job text go to whichever upstream provider the server routes to.
           </p>
         </>

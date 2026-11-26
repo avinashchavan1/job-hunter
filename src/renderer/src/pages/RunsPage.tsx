@@ -3,7 +3,7 @@ import { AlertTriangle, CheckCircle2, ChevronDown, OctagonAlert, XCircle } from 
 import type { Profile, Run } from '@shared/types'
 import { Chip, Spinner, cx, timeAgo } from '../ui'
 
-export function RunsPage({ profile, running }: { profile: Profile; running: boolean }): ReactNode {
+export function RunsPage({ profile, running, embedded }: { profile: Profile; running: boolean; embedded?: boolean }): ReactNode {
   const [runs, setRuns] = useState<Run[] | null>(null)
   const [open, setOpen] = useState<number | null>(null)
   useEffect(() => {
@@ -11,16 +11,15 @@ export function RunsPage({ profile, running }: { profile: Profile; running: bool
   }, [profile.id, running])
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5 px-8 py-6">
-      <header>
-        <p className="text-xs font-medium uppercase tracking-wider text-brand-600 dark:text-brand-400">History</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Runs</h1>
-      </header>
+    <div className={embedded ? 'space-y-5' : 'mx-auto max-w-4xl space-y-5 px-8 py-6'}>
+      {!embedded && <header>
+        <h1 className="h-page">Runs</h1>
+      </header>}
       {!runs ? <Spinner /> : runs.length === 0 ? <p className="text-sm text-ink-400">No runs yet.</p> : (
         <div className="space-y-2">
           {runs.map((r) => {
             const Icon = r.status === 'running' ? Spinner : r.status === 'ok' ? CheckCircle2 : r.status === 'partial' ? AlertTriangle : XCircle
-            const tone = { ok: 'text-emerald-700 dark:text-emerald-300', partial: 'text-amber-700 dark:text-amber-300', error: 'text-rose-700 dark:text-rose-300', running: 'text-brand-600 dark:text-brand-400' }[r.status]
+            const tone = { ok: 'text-emerald-700 dark:text-emerald-300', partial: 'text-amber-700 dark:text-amber-300', error: 'text-rose-700 dark:text-rose-300', running: 'text-ink-400' }[r.status]
             return (
               <div key={r.id} className="card overflow-hidden">
                 <button className="flex w-full items-center gap-3 px-4 py-3 text-left" onClick={() => setOpen(open === r.id ? null : r.id)}>
@@ -38,12 +37,12 @@ export function RunsPage({ profile, running }: { profile: Profile; running: bool
                 {open === r.id && (
                   <div className="space-y-3 border-t border-line px-4 py-3">
                     {r.alerts.map((a, i) => (
-                      <div key={i} className={cx('flex gap-2 rounded-xl px-3 py-2 text-xs', a.level === 'stop' ? 'bg-rose-400/10 text-rose-700 dark:text-rose-300' : 'bg-amber-400/10 text-amber-700 dark:text-amber-300')}>
+                      <div key={i} className={cx('flex gap-2 rounded-md px-3 py-2 text-xs', a.level === 'stop' ? 'bg-rose-400/10 text-rose-700 dark:text-rose-300' : 'bg-amber-400/10 text-amber-700 dark:text-amber-300')}>
                         {a.level === 'stop' ? <OctagonAlert size={14} /> : <AlertTriangle size={14} />}
                         <b className="font-medium">{a.source}</b> {a.message}
                       </div>
                     ))}
-                    <pre className="selectable max-h-80 overflow-auto rounded-xl bg-ink-950/70 p-3 font-mono text-[11px] leading-5 text-ink-300">{r.log || '(no log)'}</pre>
+                    <pre className="selectable max-h-80 overflow-auto rounded-md bg-ink-950/70 p-3 font-mono text-[11px] leading-5 text-ink-300">{r.log || '(no log)'}</pre>
                   </div>
                 )}
               </div>

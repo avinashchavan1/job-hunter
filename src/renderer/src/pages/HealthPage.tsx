@@ -9,7 +9,7 @@ function Dot({ tone }: { tone: 'ok' | 'warn' | 'bad' | 'off' }): ReactNode {
   return <span className={cx('inline-block h-2 w-2 rounded-full', c)} />
 }
 
-export function HealthPage({ running }: { running: boolean }): ReactNode {
+export function HealthPage({ running, embedded }: { running: boolean; embedded?: boolean }): ReactNode {
   const [h, setH] = useState<Health | null>(null)
   useEffect(() => {
     const load = (): void => void window.api.health().then(setH)
@@ -27,16 +27,15 @@ export function HealthPage({ running }: { running: boolean }): ReactNode {
   const runsLeft = limit ? Math.floor((limit - used) / Math.max(1, q.perRun * Math.max(1, h.profiles.filter((p: any) => p.active).length))) : null
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5 px-8 py-6">
-      <header>
-        <p className="text-xs font-medium uppercase tracking-wider text-brand-600 dark:text-brand-400">Status</p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight">Health & quotas</h1>
+    <div className={embedded ? 'space-y-5' : 'mx-auto max-w-5xl space-y-5 px-8 py-6'}>
+      {!embedded && <header>
+        <h1 className="h-page">Health & quotas</h1>
         <p className="mt-1 text-sm text-ink-400">Everything the daily run depends on, at a glance. Refreshes every 10 seconds.</p>
-      </header>
+      </header>}
 
       <div className="grid grid-cols-3 gap-4">
         <div className="card p-5">
-          <div className="flex items-center gap-2 text-sm font-medium"><Cpu size={16} className="text-brand-600 dark:text-brand-400" /> AI engine <span className="ml-auto"><Dot tone={llmTone} /></span></div>
+          <div className="flex items-center gap-2 text-sm font-medium"><Cpu size={16} className="text-ink-400" /> AI engine <span className="ml-auto"><Dot tone={llmTone} /></span></div>
           <p className="mt-2 truncate text-xs text-ink-400" title={h.llm.label}>{h.llm.label}</p>
           <div className="mt-3 space-y-1.5 text-xs">
             {h.llm.okAt && <p className="text-emerald-700 dark:text-emerald-300">Last success {timeAgo(h.llm.okAt)}{h.llm.okVia ? ` · ${h.llm.okVia}` : ''}</p>}
@@ -53,13 +52,13 @@ export function HealthPage({ running }: { running: boolean }): ReactNode {
         </div>
 
         <div className="card p-5">
-          <div className="flex items-center gap-2 text-sm font-medium"><Search size={16} className="text-brand-600 dark:text-brand-400" /> Job search API <span className="ml-auto"><Dot tone={!q.keySet ? 'bad' : pct > 85 ? 'warn' : 'ok'} /></span></div>
+          <div className="flex items-center gap-2 text-sm font-medium"><Search size={16} className="text-ink-400" /> Job search API <span className="ml-auto"><Dot tone={!q.keySet ? 'bad' : pct > 85 ? 'warn' : 'ok'} /></span></div>
           <p className="mt-2 text-xs text-ink-400">{q.provider === 'jsearch' ? 'JSearch (RapidAPI) · free Basic' : 'Adzuna'}</p>
           {q.provider === 'jsearch' && (
             <>
               <div className="mt-3 flex items-baseline gap-1"><span className="text-2xl font-semibold tabular-nums">{used}</span><span className="text-sm text-ink-400">/ {limit ?? '?'} requests</span></div>
               <div className="mt-2 h-2 overflow-hidden rounded-full bg-ink-700">
-                <div className={cx('h-full rounded-full', pct > 85 ? 'bg-amber-400' : 'bg-brand-500')} style={{ width: `${pct}%` }} />
+                <div className={cx('h-full rounded-full', pct > 85 ? 'bg-amber-400' : 'bg-ink-300')} style={{ width: `${pct}%` }} />
               </div>
               <p className="mt-2 text-xs text-ink-400">{runsLeft != null ? `≈ ${runsLeft} daily runs left this month` : ''}</p>
             </>
@@ -68,7 +67,7 @@ export function HealthPage({ running }: { running: boolean }): ReactNode {
         </div>
 
         <div className="card p-5">
-          <div className="flex items-center gap-2 text-sm font-medium"><Clock size={16} className="text-brand-600 dark:text-brand-400" /> Schedule <span className="ml-auto"><Dot tone={h.schedule.enabled ? 'ok' : 'off'} /></span></div>
+          <div className="flex items-center gap-2 text-sm font-medium"><Clock size={16} className="text-ink-400" /> Schedule <span className="ml-auto"><Dot tone={h.schedule.enabled ? 'ok' : 'off'} /></span></div>
           <p className="mt-2 text-xs text-ink-400">{h.schedule.enabled ? `Daily at ${h.schedule.time}${h.schedule.weekdaysOnly ? ', weekdays' : ''}` : 'Off'}</p>
           {h.schedule.nextRunAt && (
             <p className="mt-3 text-sm">Next: {new Date(h.schedule.nextRunAt).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}</p>
@@ -82,7 +81,7 @@ export function HealthPage({ running }: { running: boolean }): ReactNode {
           {h.profiles.map((p: any) => {
             const r = p.lastRun
             const RIcon = !r ? CircleDashed : r.status === 'ok' ? CheckCircle2 : r.status === 'running' ? Spinner : r.status === 'partial' ? AlertTriangle : XCircle
-            const rTone = !r ? 'text-ink-400' : { ok: 'text-emerald-700 dark:text-emerald-300', partial: 'text-amber-700 dark:text-amber-300', error: 'text-rose-700 dark:text-rose-300', running: 'text-brand-600 dark:text-brand-400' }[r.status as string]
+            const rTone = !r ? 'text-ink-400' : { ok: 'text-emerald-700 dark:text-emerald-300', partial: 'text-amber-700 dark:text-amber-300', error: 'text-rose-700 dark:text-rose-300', running: 'text-ink-400' }[r.status as string]
             return (
               <div key={p.id} className="flex items-start gap-4 py-3">
                 <div className="w-44 shrink-0">

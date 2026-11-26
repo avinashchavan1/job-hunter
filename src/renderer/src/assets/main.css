@@ -22,6 +22,8 @@
   --text-3: #6e6e73;
   --track: #e5e5ea;
   --sidebar: rgba(246, 246, 248, 0.6);
+  --accent: #1d1d1f;      /* primary buttons: ink, not a brand colour */
+  --on-accent: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -40,6 +42,8 @@
     --text-3: #98989d;
     --track: #3a3a3c;
     --sidebar: rgba(30, 30, 32, 0.55);
+    --accent: #f5f5f7;
+    --on-accent: #1d1d1f;
   }
 }
 
@@ -65,9 +69,12 @@
   --color-field: var(--field);
   --color-sidebar: var(--sidebar);
 
-  --color-brand-400: #7b8bff;
-  --color-brand-500: #5e6cf6;
-  --color-brand-600: #4f56e8;
+  /* one quiet accent (deep green), used sparingly: focus, selection, "good" states */
+  --color-brand-400: #5fae86;
+  --color-brand-500: #3d8b63;
+  --color-brand-600: #2f7350;
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
 }
 
 html { font-size: 15px; }  /* text-sm ≈ 13px, the macOS body size */
@@ -84,10 +91,11 @@ button { cursor: default; }
 .drag { -webkit-app-region: drag; }
 .no-drag { -webkit-app-region: no-drag; }
 
-@utility card { @apply rounded-xl border border-line bg-ink-900 shadow-[0_1px_2px_rgba(0,0,0,0.04)]; }
-@utility btn { @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-45 disabled:pointer-events-none; }
-@utility btn-primary { @apply bg-brand-600 text-white hover:bg-brand-500 shadow-sm; }
+@utility card { @apply rounded-lg border border-line bg-ink-900; }
+@utility btn { @apply inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors disabled:opacity-45 disabled:pointer-events-none; }
+@utility btn-primary { @apply bg-accent text-on-accent hover:opacity-85; }
 @utility btn-ghost { @apply text-ink-300 hover:bg-hover hover:text-ink-100; }
-@utility btn-outline { @apply border border-line-strong bg-field text-ink-100 shadow-sm hover:bg-hover; }
-@utility field { @apply w-full rounded-lg border border-line-strong bg-field px-2.5 py-1.5 text-sm text-ink-100 placeholder:text-ink-400 outline-none focus:border-brand-500 focus:ring-3 focus:ring-brand-500/25; }
-@utility label { @apply mb-1 block text-xs font-medium text-ink-400; }
+@utility btn-outline { @apply border border-line-strong bg-field text-ink-100 hover:bg-hover; }
+@utility field { @apply w-full rounded-md border border-line-strong bg-field px-2.5 py-1.5 text-sm text-ink-100 placeholder:text-ink-400 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-400/20; }
+@utility label { @apply mb-1 block text-xs font-medium text-ink-300; }
+@utility h-page { @apply text-xl font-semibold tracking-tight; }

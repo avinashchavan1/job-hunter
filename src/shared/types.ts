@@ -157,7 +157,7 @@ export interface AppSettings {
   browser: { pagesPerSitePerDay: number; minDelayS: number; maxDelayS: number; showWindow: boolean }
   scoring: { maxJobsPerRun: number }
   schedule: { enabled: boolean; time: string; weekdaysOnly: boolean }
-  autofill: { linkedin: boolean }
+  autofill: { linkedin: boolean; aiAnswers: boolean }
   notify: boolean
   openAtLogin: boolean
 }
@@ -178,4 +178,23 @@ export interface RunProgress {
   phase: string
   line: string
   running: boolean
+}
+
+export interface Tailored {
+  headline: string
+  summary: string
+  skills: string[]
+  experience: { title: string; company: string; dates: string; location: string; bullets: string[] }[]
+  education: string[]
+  certifications: string[]
+  changes: string[]
+  pdf: string
+  created_at: string
+}
+
+export interface Prep {
+  questions: { q: string; why: string; points: string[] }[]
+  revise: string[]
+  ask_them: string[]
+  created_at: string
 }

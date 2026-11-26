@@ -54,7 +54,7 @@ export function GmailSetup({ secrets, setSecrets }: { secrets: Record<SecretKey,
   return (
     <div className="space-y-4">
       {!ready && (
-        <ol className="list-decimal space-y-1.5 rounded-xl bg-ink-850/70 p-4 pl-8 text-sm text-ink-300">
+        <ol className="list-decimal space-y-1.5 rounded-md bg-ink-850/70 p-4 pl-8 text-sm text-ink-300">
           <li>Open <ExtLink href="https://console.cloud.google.com/projectcreate">Google Cloud Console</ExtLink> and create a project named “Job Hunter” (free).</li>
           <li>Enable the <ExtLink href="https://console.cloud.google.com/apis/library/gmail.googleapis.com">Gmail API</ExtLink> for that project.</li>
           <li>Open <ExtLink href="https://console.cloud.google.com/auth/overview">Google Auth Platform</ExtLink> → Get started: app name “Job Hunter”, your email, audience <b>External</b>.</li>

@@ -61,7 +61,6 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
     <div className="mx-auto max-w-5xl space-y-5 px-8 py-6">
       <header className="flex items-end justify-between">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-brand-600 dark:text-brand-400">Profile</p>
           <input className="mt-1 bg-transparent text-2xl font-semibold tracking-tight outline-none" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <button className="btn btn-primary" disabled={!dirty || busy === 'save'} onClick={save}>
@@ -79,7 +78,7 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
           </button>
         }
       >
-        {err && <p className="mb-3 rounded-xl bg-rose-400/10 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">{err}</p>}
+        {err && <p className="mb-3 rounded-md bg-rose-400/10 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">{err}</p>}
         {pr ? (
           <div className="grid grid-cols-3 gap-5 text-sm">
             <div className="space-y-3">
@@ -115,7 +114,7 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
               <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-ink-400">
                 Suggestions:
                 {pr.suggested_search_titles.filter((t) => !prefs.target_titles.includes(t)).map((t) => (
-                  <button key={t} className="rounded-lg border border-dashed border-line-strong px-2 py-0.5 hover:border-brand-500/50 hover:text-brand-600 dark:hover:text-brand-400" onClick={() => set('target_titles', [...prefs.target_titles, t])}>
+                  <button key={t} className="rounded-lg border border-dashed border-line-strong px-2 py-0.5 hover:border-ink-400 hover:text-ink-100" onClick={() => set('target_titles', [...prefs.target_titles, t])}>
                     + {t}
                   </button>
                 ))}
@@ -152,7 +151,7 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
           </div>
           <div>
             <label className="label">Minimum match score · {prefs.min_score}</label>
-            <input type="range" min={0} max={100} step={5} value={prefs.min_score} onChange={(e) => set('min_score', Number(e.target.value))} className="w-full accent-brand-500" />
+            <input type="range" min={0} max={100} step={5} value={prefs.min_score} onChange={(e) => set('min_score', Number(e.target.value))} className="w-full accent-ink-100" />
             <p className="mt-1 text-xs text-ink-400">Jobs at or above this show under “Strong”.</p>
           </div>
           <div>
@@ -167,7 +166,7 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
       </Section>
 
       <Section title="Application details" desc="Used by Autofill on application forms. Stored only on this computer — never sent to the AI.">
-        <ContactEditor profileId={profile.id} value={prefs.contact} onChange={(v) => set('contact', v)} hasResume={!!profile.resume_path} />
+        <ContactEditor profileId={profile.id} value={prefs.contact} onChange={(v) => set('contact', v)} hasResume={!!profile.resume_path} resumeName={profile.profile?.name} />
       </Section>
 
       <Section title="Saved answers" desc="Common application questions. Autofill uses these too, and you can copy them from any job.">
@@ -177,7 +176,7 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
       <Section title="Sources" desc="Where to look. The app never applies, never creates accounts, never asks for passwords.">
         <div className="grid grid-cols-2 gap-4">
           {SOURCES.map((s) => (
-            <div key={s.key} className="rounded-xl border border-line bg-ink-850/60 p-3.5">
+            <div key={s.key} className="rounded-md border border-line bg-ink-850/60 p-3.5">
               <Toggle checked={prefs.sources[s.key]} onChange={(v) => set('sources', { ...prefs.sources, [s.key]: v })} label={s.label} hint={s.hint} />
               {(s.key === 'naukri' || s.key === 'linkedin') && (
                 <SiteLogin profile={profile} site={s.key} onChange={async () => { const p = await window.api.profiles.get(profile.id); if (p) onChange(p) }} />

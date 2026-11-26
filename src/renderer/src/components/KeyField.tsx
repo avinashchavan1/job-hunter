@@ -78,7 +78,7 @@ export function KeyField({
 
 export function ExtLink({ href, children }: { href: string; children: ReactNode }): ReactNode {
   return (
-    <a className="cursor-pointer text-brand-600 dark:text-brand-400 hover:underline" onClick={() => window.api.open(href)}>
+    <a className="cursor-pointer text-ink-100 underline underline-offset-2 hover:opacity-80" onClick={() => window.api.open(href)}>
       {children}
     </a>
   )

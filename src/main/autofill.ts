@@ -10,6 +10,8 @@ import type { Match, Profile } from '../shared/types'
 import * as db from './db'
 import { getSettings } from './settings'
 import { visibleContext } from './sources/browser'
+import { answerQuestions, FormQuestion, getTailored } from './assist'
+import { existsSync } from 'fs'
 
 export interface FillData {
   values: Record<string, string>
@@ -17,7 +19,7 @@ export interface FillData {
 }
 
 const prepared = new WeakSet<BrowserContext>()
-const current = new WeakMap<BrowserContext, { data: FillData; resume: string | null }>()
+const current = new WeakMap<BrowserContext, { data: FillData; resume: string | null; pid: number; jobId: string | null }>()
 
 const ACCOUNT_PAGE = /(sign[-_]?in|sign[-_]?up|log[-_]?in|register|create[-_]?account|nlogin|forgot|password|otp|verify)/i
 
@@ -103,13 +105,18 @@ async function attachResume(frame: Frame, resume: string | null): Promise<number
 async function prepare(ctx: BrowserContext): Promise<void> {
   if (prepared.has(ctx)) return
   prepared.add(ctx)
-  await ctx.exposeBinding('__jhAutofill', async ({ frame }, kind: string) => {
+  await ctx.exposeBinding('__jhAutofill', async ({ frame }, kind: string, payload?: unknown) => {
     const cur = current.get(ctx)
     const why = allowed(frame.url())
     if (kind === 'resume') return why === 'ok' && cur ? attachResume(frame, cur.resume) : 0
+    if (kind === 'ask') {
+      if (why !== 'ok' || !cur || !getSettings().autofill.aiAnswers) return []
+      const p = db.getProfile(cur.pid)
+      return p ? answerQuestions(p, cur.jobId, (payload as FormQuestion[]) || []).catch(() => []) : []
+    }
     if (!cur) return { blocked: 'other' }
     if (why !== 'ok') return { blocked: why }
-    return { data: cur.data }
+    return { data: cur.data, ai: getSettings().autofill.aiAnswers }
   })
   await ctx.addInitScript({ content: `(${pageScript.toString()})()` })
 }
@@ -150,7 +157,10 @@ export async function openForApply(p: Profile, jobId: string): Promise<void> {
   const m = db.listMatches(p.id, { includeFiltered: true }).find((x) => x.id === jobId)
   if (!m?.url) throw new Error('This job has no link to open.')
   const ctx = await visibleContext(p)
-  current.set(ctx, { data: buildData(p, m), resume: p.resume_path })
+  // a resume tailored to this job wins over the original
+  const tailored = getTailored(p.id, jobId)
+  const resume = tailored && existsSync(tailored.pdf) ? tailored.pdf : p.resume_path
+  current.set(ctx, { data: buildData(p, m), resume, pid: p.id, jobId })
   await prepare(ctx)
   const blank = ctx.pages().find((pg) => pg.url() === 'about:blank')
   const page = blank ?? (await ctx.newPage())
@@ -282,7 +292,9 @@ function pageScript(): void {
     el.style.outlineOffset = '1px'
   }
 
-  function fillHere(data: { values: Record<string, string>; answers: { label: string; value: string }[] }): { filled: number; missing: number; seen: number } {
+  async function fillHere(data: { values: Record<string, string>; answers: { label: string; value: string }[] }, ai: boolean): Promise<{ filled: number; missing: number; seen: number; drafted: number }> {
+    const pending: { el: HTMLElement; label: string; required: boolean; options?: string[]; long: boolean }[] = []
+    let drafted = 0
     let filled = 0
     let missing = 0
     const els: HTMLElement[] = []
@@ -318,35 +330,61 @@ function pageScript(): void {
       if (v && type === 'email' && !v.includes('@')) v = ''
       let ok = false
       if (v) ok = isSelect ? pickOption(el as HTMLSelectElement, v) : editable ? setEditable(el, v) : (setValue(input, v), true)
-      if (ok) { mark(el, GREEN); filled++ } else if (required) { mark(el, AMBER); missing++ }
+      if (ok) { mark(el, GREEN); filled++ }
+      else if (!/captcha|otp/.test(label)) {
+        const options = isSelect ? Array.from((el as HTMLSelectElement).options).map((o) => o.text.trim()).filter((t) => t && !/^(select|choose|--)/i.test(t)).slice(0, 30) : undefined
+        pending.push({ el, label: label.split(' | ')[0].slice(0, 200), required, options, long: el.tagName === 'TEXTAREA' || editable })
+      }
     }
-    return { filled, missing, seen }
+    // questions we have no saved fact for: ask the AI for a draft, marked dashed amber for the person to check
+    let answers: { i: number; value: string }[] = []
+    if (ai && pending.length) {
+      const qs = pending.map((q, i) => ({ i, label: q.label, options: q.options, long: q.long }))
+      answers = await w.__jhAutofill('ask', qs).catch(() => [])
+    }
+    pending.forEach((q, i) => {
+      const a = answers.find((x) => x.i === i)
+      let ok = false
+      if (a && a.value) {
+        const el = q.el as HTMLInputElement
+        ok = el.tagName === 'SELECT' ? pickOption(q.el as HTMLSelectElement, a.value) : !/^(INPUT|TEXTAREA)$/.test(el.tagName) ? setEditable(q.el, a.value) : (setValue(el, a.value), true)
+      }
+      if (ok) {
+        q.el.style.outline = `2px dashed ${AMBER}`
+        q.el.style.outlineOffset = '1px'
+        q.el.title = 'Drafted by Job Hunter from your resume — check before submitting'
+        drafted++
+      } else if (q.required) { mark(q.el, AMBER); missing++ }
+    })
+    return { filled, missing, seen, drafted }
   }
 
   // ---- frame plumbing: the top page asks every frame to fill and adds up the results ----
   const children = (): Window[] => Array.from({ length: window.frames.length }, (_, i) => window.frames[i])
-  async function fillTree(): Promise<{ filled: number; missing: number; seen: number; blocked?: string }> {
+  async function fillTree(): Promise<{ filled: number; missing: number; seen: number; drafted: number; blocked?: string }> {
     const r = await w.__jhAutofill('data').catch(() => ({ blocked: 'other' }))
-    const mine = r.data ? fillHere(r.data) : { filled: 0, missing: 0, seen: 0 }
+    const mine = r.data ? await fillHere(r.data, !!r.ai) : { filled: 0, missing: 0, seen: 0, drafted: 0 }
     const kids = children()
     if (!kids.length) return { ...mine, blocked: r.blocked }
     const id = Math.random().toString(36).slice(2)
-    const got = await new Promise<{ filled: number; missing: number; seen: number }[]>((resolve) => {
-      const out: { filled: number; missing: number; seen: number }[] = []
+    const got = await new Promise<{ filled: number; missing: number; seen: number; drafted: number }[]>((resolve) => {
+      const out: { filled: number; missing: number; seen: number; drafted: number }[] = []
       const on = (e: MessageEvent): void => {
         if (e.data?.jh === 'filled' && e.data.id === id) out.push(e.data)
       }
       window.addEventListener('message', on)
       kids.forEach((k) => { try { k.postMessage({ jh: 'fill', id }, '*') } catch { /* gone */ } })
-      setTimeout(() => { window.removeEventListener('message', on); resolve(out) }, 1500)
+      setTimeout(() => { window.removeEventListener('message', on); resolve(out) }, 20000) // frames may be waiting on AI drafts
+      const t0 = Date.now()
+      const poll = setInterval(() => { if (out.length >= kids.length || Date.now() - t0 > 20000) { clearInterval(poll); window.removeEventListener('message', on); resolve(out) } }, 200)
     })
-    const total = got.reduce((a, b) => ({ filled: a.filled + b.filled, missing: a.missing + b.missing, seen: a.seen + (b.seen || 0) }), mine)
+    const total = got.reduce((a, b) => ({ filled: a.filled + b.filled, missing: a.missing + b.missing, seen: a.seen + (b.seen || 0), drafted: a.drafted + (b.drafted || 0) }), mine)
     return { ...total, blocked: r.blocked }
   }
   window.addEventListener('message', async (e) => {
     if (e.data?.jh !== 'fill' || e.source !== window.parent) return
     const r = await fillTree()
-    window.parent.postMessage({ jh: 'filled', id: e.data.id, filled: r.filled, missing: r.missing, seen: r.seen }, '*')
+    window.parent.postMessage({ jh: 'filled', id: e.data.id, filled: r.filled, missing: r.missing, seen: r.seen, drafted: r.drafted }, '*')
   })
   if (!isTop) return
 
@@ -359,14 +397,14 @@ function pageScript(): void {
     const root = host.attachShadow({ mode: 'closed' })
     root.innerHTML = `<style>
       *{box-sizing:border-box;font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-      .btn{display:flex;align-items:center;gap:8px;padding:10px 16px;border:0;border-radius:999px;background:#4f46e5;color:#fff;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(79,70,229,.35)}
-      .btn:hover{background:#4338ca}.btn[disabled]{opacity:.7;cursor:default}
-      .card{position:absolute;right:0;bottom:52px;width:300px;padding:12px 14px;border-radius:14px;background:#fff;color:#1f2937;box-shadow:0 10px 30px rgba(0,0,0,.18);display:none}
+      .btn{display:flex;align-items:center;gap:6px;padding:8px 14px;border:1px solid rgba(0,0,0,.12);border-radius:8px;background:#1d1d1f;color:#fff;font-weight:500;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.18)}
+      .btn:hover{background:#000}.btn[disabled]{opacity:.7;cursor:default}
+      .card{position:absolute;right:0;bottom:46px;width:300px;padding:12px 14px;border-radius:10px;border:1px solid rgba(0,0,0,.08);background:#fff;color:#1f2937;box-shadow:0 10px 30px rgba(0,0,0,.18);display:none}
       .card b{font-weight:600}.x{position:absolute;top:6px;right:8px;border:0;background:none;color:#9ca3af;cursor:pointer;font-size:15px}
       .g{color:#059669}.a{color:#b45309}.m{color:#6b7280;font-size:12px;margin-top:6px}
     </style>
     <div class="card"><button class="x" title="Hide">×</button><div class="body"></div></div>
-    <button class="btn">✦ Autofill</button>`
+    <button class="btn">Fill form</button>`
     const btn = root.querySelector('.btn') as HTMLButtonElement
     const card = root.querySelector('.card') as HTMLDivElement
     const body = root.querySelector('.body') as HTMLDivElement
@@ -378,21 +416,22 @@ function pageScript(): void {
       try {
         const r = await fillTree()
         if (r.blocked === 'linkedin') show('<b>Autofill is off for LinkedIn.</b><div class="m">LinkedIn’s terms forbid automation. You can turn it on in Job Hunter → Settings, at your own risk.</div>')
-        else if (r.blocked === 'account') show('<b>This looks like a sign-in or sign-up page.</b><div class="m">Job Hunter never fills these. Sign in yourself, then click Autofill on the application form.</div>')
-        else if (r.seen === 0) show('<b>No form fields on this page.</b><div class="m">Open the application form first (click the site’s Apply button), then click Autofill.</div>')
+        else if (r.blocked === 'account') show('<b>This looks like a sign-in or sign-up page.</b><div class="m">Job Hunter never fills these. Sign in yourself, then click Fill form on the application form.</div>')
+        else if (r.seen === 0) show('<b>No form fields on this page.</b><div class="m">Open the application form first (click the site’s Apply button), then click Fill form.</div>')
         else {
           const files = await w.__jhAutofill('resume').catch(() => 0)
           show(
             `<b>Filled <span class="g">${r.filled}</span> field${r.filled === 1 ? '' : 's'}</b>` +
               (files ? ' · resume attached' : '') +
+              (r.drafted ? `<div class="a">${r.drafted} answer${r.drafted === 1 ? '' : 's'} drafted from your resume (dashed) — read and edit them.</div>` : '') +
               (r.missing ? `<div class="a">${r.missing} required field${r.missing === 1 ? ' still needs' : 's still need'} you (amber).</div>` : '') +
               (r.filled === 0 ? `<div class="m">Saw ${r.seen} field${r.seen === 1 ? '' : 's'} but none matched your details. Tell Job Hunter which site this was.</div>` : '') +
-              '<div class="m">Check every field, then submit yourself. On multi-step forms, click Autofill again on each step.</div>'
+              '<div class="m">Check every field, then submit yourself. On multi-step forms, click Fill form again on each step.</div>'
           )
         }
       } finally {
         btn.disabled = false
-        btn.textContent = '✦ Autofill'
+        btn.textContent = 'Fill form'
       }
     }
     document.body.appendChild(host)
