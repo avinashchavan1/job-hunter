@@ -176,7 +176,7 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
 
       <Section title="Sources" desc="Where to look. The app never applies, never creates accounts, never asks for passwords.">
         <div className="grid grid-cols-2 gap-4">
-          {SOURCES.map((s) => (
+          {SOURCES.filter((s) => !(window.api.isWeb && (s.key === 'linkedin' || s.key === 'naukri'))).map((s) => (
             <div key={s.key} className="rounded-md border border-line bg-ink-850/60 p-3.5">
               <Toggle checked={prefs.sources[s.key]} onChange={(v) => set('sources', { ...prefs.sources, [s.key]: v })} label={s.label} hint={s.hint} />
               {(s.key === 'naukri' || s.key === 'linkedin') && (

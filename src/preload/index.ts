@@ -72,6 +72,10 @@ const api = {
   reveal: (path: string, open?: boolean) => inv<void>('file:reveal', path, open),
   /** Real path of a file dropped onto the window. */
   pathForFile: (f: File) => webUtils.getPathForFile(f),
+  /** Website only: opens the browser's file picker (the desktop app uses a native dialog inside importResume). */
+  pickResume: undefined as undefined | (() => Promise<string | null>),
+  /** True in the website build. */
+  isWeb: false as boolean,
   open: (url: string) => inv<void>('shell:open', url)
 }
 

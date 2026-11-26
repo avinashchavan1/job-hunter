@@ -41,7 +41,7 @@ export function AiEngine({
 
   const opts = [
     { key: 'anthropic' as const, title: 'Claude', desc: 'Best scoring & cover notes. Paid per use (Anthropic key).', icon: <Cpu size={18} /> },
-    { key: 'openai_compat' as const, title: 'Free / local AI', desc: 'FreeLLMAPI, Ollama, LM Studio or any OpenAI-compatible server.', icon: <Cpu size={18} /> }
+    { key: 'openai_compat' as const, title: window.api.isWeb ? 'OpenRouter / other' : 'Free / local AI', desc: window.api.isWeb ? 'OpenRouter (has free models) or any OpenAI-compatible server on the internet.' : 'FreeLLMAPI, Ollama, LM Studio or any OpenAI-compatible server.', icon: <Cpu size={18} /> }
   ]
 
   return (
@@ -95,7 +95,7 @@ export function AiEngine({
           <div>
             <label className="label">Server URL</label>
             <div className="flex gap-2">
-              <input className="field font-mono" placeholder="http://localhost:3001/v1" value={url} onChange={(e) => setUrl(e.target.value)}
+              <input className="field font-mono" placeholder={window.api.isWeb ? 'https://openrouter.ai/api/v1' : 'http://localhost:3001/v1'} value={url} onChange={(e) => setUrl(e.target.value)}
                 onBlur={() => url !== s.llm.baseUrl && setLlm({ baseUrl: url.trim() })} />
             </div>
             <p className="mt-1.5 text-xs text-ink-400">FreeLLMAPI: http://localhost:3001/v1 · Ollama: http://localhost:11434/v1 · LM Studio: http://localhost:1234/v1</p>

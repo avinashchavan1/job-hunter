@@ -9,6 +9,12 @@ import { HealthPage } from './HealthPage'
 
 type Tab = 'general' | 'sources' | 'advanced' | 'activity' | 'health'
 
+/** Extra sections a host (the website) can add to the General tab, e.g. sign-in members. */
+let extraGeneral: ReactNode = null
+export const setSettingsExtra = (n: ReactNode): void => {
+  extraGeneral = n
+}
+
 export function SettingsPage({ secrets, setSecrets, profile, running }: { secrets: Record<SecretKey, boolean>; setSecrets: (s: Record<SecretKey, boolean>) => void; profile: Profile; running: boolean }): ReactNode {
   const [s, setS] = useState<AppSettings | null>(null)
   const [next, setNext] = useState<string | null>(null)
@@ -50,9 +56,9 @@ export function SettingsPage({ secrets, setSecrets, profile, running }: { secret
           <Section title="Daily check" desc={s.schedule.enabled && nextLabel ? `Next: ${nextLabel}` : 'Off — use Check for jobs on the Today screen.'}>
             <div className="flex items-start gap-6">
               <div className="flex-1 space-y-3">
-                <Toggle checked={s.schedule.enabled} onChange={(v) => save({ schedule: { ...s.schedule, enabled: v } })} label="Look for new jobs every day" hint="Runs while Job Hunter is open in the menu bar / system tray. Catches up if the computer was asleep." />
-                <Toggle checked={s.notify} onChange={(v) => save({ notify: v })} label="Notify me when new matches are found" />
-                <Toggle checked={s.openAtLogin} onChange={async (v) => setS(await window.api.settings.setOpenAtLogin(v))} label="Start Job Hunter when I log in" />
+                <Toggle checked={s.schedule.enabled} onChange={(v) => save({ schedule: { ...s.schedule, enabled: v } })} label="Look for new jobs every day" hint={window.api.isWeb ? 'Runs on the server, even when no one has the site open.' : 'Runs while Job Hunter is open in the menu bar / system tray. Catches up if the computer was asleep.'} />
+                {!window.api.isWeb && <Toggle checked={s.notify} onChange={(v) => save({ notify: v })} label="Notify me when new matches are found" />}
+                {!window.api.isWeb && <Toggle checked={s.openAtLogin} onChange={async (v) => setS(await window.api.settings.setOpenAtLogin(v))} label="Start Job Hunter when I log in" />}
               </div>
               <div>
                 <label className="label">Time</label>
@@ -61,16 +67,17 @@ export function SettingsPage({ secrets, setSecrets, profile, running }: { secret
             </div>
           </Section>
 
-          <Section title="Applying" desc="Apply opens the job in Job Hunter's own Chrome window with a Fill form button. It fills what it knows, you check and press Submit yourself. It never submits, and never touches sign-in or sign-up pages.">
+          {!window.api.isWeb && <Section title="Applying" desc="Apply opens the job in Job Hunter's own Chrome window with a Fill form button. It fills what it knows, you check and press Submit yourself. It never submits, and never touches sign-in or sign-up pages.">
             <div className="space-y-3">
               <Toggle checked={s.autofill.aiAnswers} onChange={(v) => save({ autofill: { ...s.autofill, aiAnswers: v } })} label="Draft answers to other questions" hint="Questions with no saved answer get a draft written from the resume, outlined with a dashed border so you read it. Never used for gender, age, caste, disability or similar." />
               <Toggle checked={s.autofill.linkedin} onChange={(v) => save({ autofill: { ...s.autofill, linkedin: v } })} label="Allow Fill form on LinkedIn" hint="Off by default. LinkedIn’s terms forbid automation and accounts can be restricted." />
             </div>
-          </Section>
+          </Section>}
 
           <Section title="AI engine" desc="Reads resumes, scores jobs, writes cover notes, tailored resumes and interview prep.">
             <AiEngine settings={s} setSettings={setS} secrets={secrets} setSecrets={setSecrets} />
           </Section>
+          {extraGeneral}
         </div>
       )}
 
@@ -91,7 +98,7 @@ export function SettingsPage({ secrets, setSecrets, profile, running }: { secret
           <Section title="Gmail job alerts" desc="One-time setup. Then each person connects their own inbox (read-only) from their Profile.">
             <GmailSetup secrets={secrets} setSecrets={setSecrets} />
           </Section>
-          <p className="text-xs text-ink-400">Per person, in Profile → Sources: companies to watch, Gmail, Naukri and LinkedIn.</p>
+          <p className="text-xs text-ink-400">{window.api.isWeb ? 'Per person, in Profile → Sources: companies to watch and Gmail job alerts (which bring in Naukri and LinkedIn jobs).' : 'Per person, in Profile → Sources: companies to watch, Gmail, Naukri and LinkedIn.'}</p>
         </div>
       )}
 
@@ -116,7 +123,7 @@ export function SettingsPage({ secrets, setSecrets, profile, running }: { secret
             </div>
             <div className="mt-4"><Toggle checked={s.schedule.weekdaysOnly} onChange={(v) => save({ schedule: { ...s.schedule, weekdaysOnly: v } })} label="Daily check on weekdays only" /></div>
           </Section>
-          <Section title="Naukri / LinkedIn reading" desc="Read-only and slow on purpose. Stops on any CAPTCHA, login wall or unusual-activity page.">
+          {!window.api.isWeb && <Section title="Naukri / LinkedIn reading" desc="Read-only and slow on purpose. Stops on any CAPTCHA, login wall or unusual-activity page.">
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="label">Pages per site per day</label>
@@ -132,7 +139,7 @@ export function SettingsPage({ secrets, setSecrets, profile, running }: { secret
               </div>
             </div>
             <div className="mt-4"><Toggle checked={s.browser.showWindow} onChange={(v) => save({ browser: { ...s.browser, showWindow: v } })} label="Show the Chrome window while reading" /></div>
-          </Section>
+          </Section>}
         </div>
       )}
 

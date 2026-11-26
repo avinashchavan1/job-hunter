@@ -21,7 +21,10 @@
     "web:dev": "vite --config web/vite.config.mts",
     "web:typecheck": "tsc --noEmit -p web/tsconfig.json",
     "web:build": "npm run web:typecheck && vite build --config web/vite.config.mts",
-    "web:deploy": "npm run web:build && netlify deploy --prod --dir web/dist --site cba25219-5a91-46ed-bcef-43c80f031b18"
+    "web:deploy": "npm run web:build && netlify deploy --prod --dir web/dist --site cba25219-5a91-46ed-bcef-43c80f031b18",
+    "server:typecheck": "tsc -p server/tsconfig.json",
+    "server:build": "npm run server:typecheck && node scripts/build-functions.mjs",
+    "server:deploy": "npm run server:build && npx -y supabase@latest functions deploy jh-api --remote=vrhcofbhrcqthbacixpb --no-verify-jwt --use-api --workdir . --yes"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.12.0",
@@ -47,10 +50,12 @@
     "electron": "^44.7.2",
     "electron-builder": "^26.15.3",
     "electron-vite": "^6.0.0",
+    "esbuild": "^0.28.2",
     "eslint": "^9.39.5",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
+    "fflate": "^0.8.3",
     "prettier": "^3.9.10",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

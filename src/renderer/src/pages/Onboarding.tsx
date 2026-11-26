@@ -95,7 +95,11 @@ export function Onboarding({
             onDragOver={(e) => { e.preventDefault(); setOver(true) }}
             onDragLeave={() => setOver(false)}
             onDrop={onDrop}
-            onClick={() => create()}
+            onClick={async () => {
+              if (!window.api.pickResume) return create()
+              const f = await window.api.pickResume()
+              if (f) await create(f)
+            }}
             disabled={busy || !ready}
             className={cx('mt-4 flex w-full flex-col items-center gap-1.5 rounded-lg border border-dashed px-6 py-10 text-sm transition',
               over ? 'border-ink-100 bg-hover' : 'border-line-strong hover:bg-hover')}>
