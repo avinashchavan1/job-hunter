@@ -31,6 +31,8 @@ var DEFAULT_PREFS = {
 var SECRET_KEYS = [
   "ANTHROPIC_API_KEY",
   "LLM_API_KEY",
+  "LLM_API_KEY_2",
+  "LLM_API_KEY_3",
   "RAPIDAPI_KEY",
   "ADZUNA_APP_ID",
   "ADZUNA_APP_KEY",
@@ -717,17 +719,40 @@ var LLMDailyLimit = class extends LLMNotConfigured {
 };
 var cooldown = /* @__PURE__ */ new Map();
 var lastVia = "";
+var istDay = () => new Date(Date.now() + 5.5 * 36e5).toISOString().slice(0, 10);
+var spentKey = () => `llm_spent:${istDay()}`;
 var Llm = class _Llm {
-  constructor(s, anthropicKey, compatKey) {
+  constructor(s, anthropicKey, keys, spent) {
     this.s = s;
     this.anthropicKey = anthropicKey;
-    this.compatKey = compatKey;
+    this.keys = keys;
+    this.spent = spent;
   }
   s;
   anthropicKey;
-  compatKey;
+  keys;
+  spent;
   static async load() {
-    return new _Llm(await getSettings(), await secret("ANTHROPIC_API_KEY"), await secret("LLM_API_KEY"));
+    const keys = [await secret("LLM_API_KEY"), await secret("LLM_API_KEY_2"), await secret("LLM_API_KEY_3")];
+    const spent = new Set(JSON.parse(await kvGet(spentKey()) || "[]"));
+    return new _Llm(await getSettings(), await secret("ANTHROPIC_API_KEY"), keys, spent);
+  }
+  /** Index of the key to use now, or -1 if every key has used its daily allowance. */
+  keyIndex() {
+    const live = this.keys.map((k, i) => k && !this.spent.has(i) ? i : -1).filter((i) => i >= 0);
+    if (live.length) return live[0];
+    return this.keys.some(Boolean) ? -1 : 0;
+  }
+  get compatKey() {
+    const i = this.keyIndex();
+    return i < 0 ? "" : this.keys[i] ?? "";
+  }
+  async markSpent() {
+    const i = this.keyIndex();
+    if (i >= 0) this.spent.add(i);
+    await kvSet(spentKey(), JSON.stringify([...this.spent])).catch(() => {
+    });
+    return this.keyIndex() >= 0;
   }
   get engine() {
     return this.s.llm.provider;
@@ -796,8 +821,10 @@ var Llm = class _Llm {
     });
     const body = await r.text();
     if (r.status === 401 || r.status === 403) throw new LLMNotConfigured(`AI server rejected the request (HTTP ${r.status}): ${body.slice(0, 200)}`);
-    if (r.status === 429 && /per-day|per day|daily/i.test(body))
+    if (r.status === 429 && /per-day|per day|daily/i.test(body)) {
+      if (await this.markSpent()) return this.chat(messages, o, useModel);
       throw new LLMDailyLimit("The AI\u2019s free daily limit is used up (OpenRouter allows ~50 free requests a day without credits). Scoring continues automatically tomorrow \u2014 or add $10 of OpenRouter credits for 1,000 free requests a day.");
+    }
     if (!r.ok) {
       const err = new Error(`AI server HTTP ${r.status}: ${body.slice(0, 300)}`);
       err.status = r.status;

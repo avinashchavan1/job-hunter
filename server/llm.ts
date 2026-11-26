@@ -6,6 +6,7 @@ import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod'
 import { z } from 'zod'
 import type { AppSettings } from '../src/shared/types'
 import { getSettings, secret } from './ctx'
+import { kvGet, kvSet } from './store'
 
 export class LLMNotConfigured extends Error {}
 /** The AI account's daily allowance is used up: stop for today instead of retrying every job. */
@@ -17,11 +18,35 @@ type Opts = { effort?: 'low' | 'medium' | 'high'; maxTokens?: number }
 const cooldown = new Map<string, number>()
 let lastVia = ''
 
+// Several keys for the same AI server (e.g. two people's OpenRouter accounts): use the first one that
+// still has its daily allowance; one that hits the daily limit is skipped until tomorrow (India date).
+const istDay = (): string => new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10)
+const spentKey = (): string => `llm_spent:${istDay()}`
+
 export class Llm {
-  private constructor(private s: AppSettings, private anthropicKey: string, private compatKey: string) {}
+  private constructor(private s: AppSettings, private anthropicKey: string, private keys: string[], private spent: Set<number>) {}
 
   static async load(): Promise<Llm> {
-    return new Llm(await getSettings(), await secret('ANTHROPIC_API_KEY'), await secret('LLM_API_KEY'))
+    const keys = [await secret('LLM_API_KEY'), await secret('LLM_API_KEY_2'), await secret('LLM_API_KEY_3')]
+    const spent = new Set<number>(JSON.parse((await kvGet(spentKey())) || '[]'))
+    return new Llm(await getSettings(), await secret('ANTHROPIC_API_KEY'), keys, spent)
+  }
+
+  /** Index of the key to use now, or -1 if every key has used its daily allowance. */
+  private keyIndex(): number {
+    const live = this.keys.map((k, i) => (k && !this.spent.has(i) ? i : -1)).filter((i) => i >= 0)
+    if (live.length) return live[0]
+    return this.keys.some(Boolean) ? -1 : 0 // no key at all: send none (local servers)
+  }
+  private get compatKey(): string {
+    const i = this.keyIndex()
+    return i < 0 ? '' : this.keys[i] ?? ''
+  }
+  private async markSpent(): Promise<boolean> {
+    const i = this.keyIndex()
+    if (i >= 0) this.spent.add(i)
+    await kvSet(spentKey(), JSON.stringify([...this.spent])).catch(() => {})
+    return this.keyIndex() >= 0
   }
 
   get engine(): 'anthropic' | 'openai_compat' {
@@ -99,8 +124,11 @@ export class Llm {
     })
     const body = await r.text()
     if (r.status === 401 || r.status === 403) throw new LLMNotConfigured(`AI server rejected the request (HTTP ${r.status}): ${body.slice(0, 200)}`)
-    if (r.status === 429 && /per-day|per day|daily/i.test(body))
+    if (r.status === 429 && /per-day|per day|daily/i.test(body)) {
+      // this account is done for today: switch to the next key, if there is one
+      if (await this.markSpent()) return this.chat(messages, o, useModel)
       throw new LLMDailyLimit('The AI’s free daily limit is used up (OpenRouter allows ~50 free requests a day without credits). Scoring continues automatically tomorrow — or add $10 of OpenRouter credits for 1,000 free requests a day.')
+    }
     if (!r.ok) {
       const err = new Error(`AI server HTTP ${r.status}: ${body.slice(0, 300)}`) as Error & { status?: number }
       err.status = r.status

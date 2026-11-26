@@ -168,6 +168,8 @@ export interface AppSettings {
 export const SECRET_KEYS = [
   'ANTHROPIC_API_KEY',
   'LLM_API_KEY',
+  'LLM_API_KEY_2',
+  'LLM_API_KEY_3',
   'RAPIDAPI_KEY',
   'ADZUNA_APP_ID',
   'ADZUNA_APP_KEY',
