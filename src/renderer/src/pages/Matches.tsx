@@ -4,6 +4,7 @@ import { ReactNode, useEffect, useMemo, useState } from 'react'
 import { Check, ChevronRight, EyeOff, ExternalLink, Play, RefreshCw, Search, Star, Undo2, X } from 'lucide-react'
 import type { Match, Prefs, Profile, ProfileStats, Status } from '@shared/types'
 import { checkTrust, Trust } from '@shared/trust'
+import { checks } from '@shared/filters'
 import { QuickAnswers, withDefaults } from '../components/Answers'
 import { InterviewPrep, TailoredResume } from '../components/Assist'
 import { CopyButton, ScoreRing, Spinner, cx, timeAgo } from '../ui'
@@ -160,6 +161,22 @@ function TrustTag({ t }: { t: Trust }): ReactNode {
   return <span className={cx('text-xs font-medium', tone)} title={t.reasons.join(' ')}>{t.label}</span>
 }
 
+/** Green = fits the preferences, red = doesn't, grey = the posting doesn't say. Nothing is hidden for these. */
+function Checks({ m, prefs }: { m: Match; prefs: Prefs }): ReactNode {
+  const list = checks(m, prefs)
+  if (!list.length) return null
+  return (
+    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px]">
+      {list.map((c, i) => (
+        <span key={i} className={cx('inline-flex items-center gap-1', c.ok === true ? 'text-emerald-700 dark:text-emerald-400' : c.ok === 'near' ? 'text-amber-700 dark:text-amber-400' : c.ok === false ? 'text-rose-700 dark:text-rose-400' : 'text-ink-400')}>
+          {c.ok === true ? <Check size={11} /> : c.ok === 'near' ? <span className="w-[11px] text-center">~</span> : c.ok === false ? <X size={11} /> : <span className="w-[11px] text-center">?</span>}
+          {c.label}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 function JobRow({ m, trust, profile, open, onToggle, onStatus, onRescored }: {
   m: Match; trust: Trust; profile: Profile; open: boolean; onToggle: () => void; onStatus: (s: Status) => void; onRescored: (m: Match) => void
 }): ReactNode {
@@ -190,6 +207,7 @@ function JobRow({ m, trust, profile, open, onToggle, onStatus, onRescored }: {
             <TrustTag t={trust} />
           </div>
           <div className="mt-0.5 truncate text-xs text-ink-400">{meta.join(' · ')}</div>
+          <Checks m={m} prefs={profile.prefs} />
         </button>
         <div className="flex items-center gap-1">
           <button className={cx('rounded-md p-1.5 hover:bg-hover', starred ? 'text-amber-500' : 'text-ink-400 opacity-0 group-hover:opacity-100', open && 'opacity-100')}
@@ -245,7 +263,7 @@ function JobDetail({ m, trust, profile, onStatus, onRescored }: { m: Match; trus
   return (
     <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8 border-t border-line pb-5 pt-4">
       <div className="space-y-4 text-sm">
-        {m.filter_reason && <p className="text-xs text-rose-700 dark:text-rose-300">Hidden by your filters: {m.filter_reason}</p>}
+        {m.filter_reason && <p className="text-xs text-rose-700 dark:text-rose-300">On your skip list: {m.filter_reason.replace(/^excluded (company|keyword): /, '')}</p>}
         {trust.level !== 'direct' && trust.level !== 'ok' && (
           <div className={cx('border-l-2 pl-3', trust.level === 'risky' ? 'border-rose-500' : 'border-amber-500')}>
             <div className="font-medium">{trust.label}</div>

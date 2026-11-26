@@ -288,9 +288,13 @@ export const webApi: Api = {
     label: () => call<string>('llm.label')
   },
   gmail: {
-    connect: async () => NOT_YET('Gmail'),
-    disconnect: async () => false,
-    connected: async () => false,
+    // leaves the site for Google's consent page; Google sends the person back with ?gmail=connected
+    connect: async (pid) => {
+      location.href = await call<string>('gmail.connect', { pid, origin: location.origin })
+      return new Promise<string>(() => {})
+    },
+    disconnect: (pid) => call<boolean>('gmail.disconnect', { pid }),
+    connected: (pid) => call<boolean>('gmail.connected', { pid }),
     probe: async () => ({ counts: [], domains: {} })
   },
   health: async () => ({

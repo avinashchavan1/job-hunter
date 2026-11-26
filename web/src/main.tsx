@@ -24,6 +24,31 @@ function Account({ email }: { email: string }): ReactNode {
   )
 }
 
+// Google sends people back here after connecting Gmail
+const GMAIL_WHY: Record<string, string> = {
+  access_denied: 'You cancelled the Google sign-in.',
+  norefresh: 'Google did not give long-term access. Remove Job Hunter at myaccount.google.com/permissions and connect again.',
+  expired: 'The Google sign-in took too long. Try again.'
+}
+function GmailNotice(): ReactNode {
+  const [msg] = useState(() => {
+    const q = new URLSearchParams(location.search)
+    const g = q.get('gmail')
+    if (!g) return null
+    history.replaceState(null, '', location.pathname)
+    if (g === 'connected') return { ok: true, text: 'Gmail connected. Job-alert emails are read on the next check.' }
+    const why = q.get('why') || ''
+    return { ok: false, text: `Gmail not connected: ${GMAIL_WHY[why] ?? why}` }
+  })
+  const [open, setOpen] = useState(!!msg)
+  if (!msg || !open) return null
+  return (
+    <div className={`fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-md border px-4 py-2 text-sm shadow-lg ${msg.ok ? 'border-emerald-500/40 bg-ink-900 text-emerald-700 dark:text-emerald-300' : 'border-rose-500/40 bg-ink-900 text-rose-700 dark:text-rose-300'}`}>
+      {msg.text} <button className="ml-3 underline" onClick={() => setOpen(false)}>OK</button>
+    </div>
+  )
+}
+
 function Root(): ReactNode {
   const [session, setSession] = useState<Session | null | undefined>(undefined)
   const [access, setAccess] = useState<Access | null>(null)
@@ -63,7 +88,12 @@ function Root(): ReactNode {
       <Account email={email} />
     </>
   )
-  return <App key={session.user.id} />
+  return (
+    <>
+      <App key={session.user.id} />
+      <GmailNotice />
+    </>
+  )
 }
 
 createRoot(document.getElementById('root')!).render(

@@ -4,6 +4,7 @@ import { getSettings } from './ctx'
 import { fetchApis, fetchBoards, SourceNotConfigured } from './sources'
 import { saveFound, writeRun } from './store'
 import { scorePending } from './matcher'
+import { fetchGmailJobs } from './gmail'
 import { LLMNotConfigured } from './llm'
 
 const IST = (): string => new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour12: false })
@@ -35,7 +36,8 @@ export async function runProfile(p: Profile, runId: number, only?: SourceKey[]):
 
   const sources: [SourceKey, () => Promise<import('../src/shared/types').Job[]>][] = [
     ['job_api', () => fetchApis(p, s, log)],
-    ['careers', () => fetchBoards(p, log)]
+    ['careers', () => fetchBoards(p, log)],
+    ['gmail', () => fetchGmailJobs(p, log, started + 105_000)]
   ]
   try {
     log(`Run started for ${p.name}`)

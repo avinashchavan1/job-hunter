@@ -53,7 +53,15 @@ export function GmailSetup({ secrets, setSecrets }: { secrets: Record<SecretKey,
   const ready = secrets.GOOGLE_CLIENT_ID && secrets.GOOGLE_CLIENT_SECRET
   return (
     <div className="space-y-4">
-      {!ready && (
+      {!ready && window.api.isWeb && (
+        <ol className="list-decimal space-y-1.5 rounded-md bg-ink-850/70 p-4 pl-8 text-sm text-ink-300">
+          <li>In <ExtLink href="https://console.cloud.google.com/apis/library/gmail.googleapis.com">Google Cloud</ExtLink> (the project used for Google sign-in), enable the <b>Gmail API</b>.</li>
+          <li><b>Google Auth Platform → Data access</b>: add the scope <code className="selectable font-mono">gmail.readonly</code>. <b>Audience → Test users</b>: add every Gmail you’ll connect.</li>
+          <li><b>Clients</b> → open the <b>Web application</b> client → Authorized redirect URIs → add <code className="selectable font-mono break-all">https://vrhcofbhrcqthbacixpb.supabase.co/functions/v1/jh-api/gmail-callback</code></li>
+          <li>In Supabase → Edge Functions → Secrets, set <code className="selectable font-mono">JH_GOOGLE_CLIENT_ID</code> and <code className="selectable font-mono">JH_GOOGLE_CLIENT_SECRET</code> to that web client.</li>
+        </ol>
+      )}
+      {!ready && !window.api.isWeb && (
         <ol className="list-decimal space-y-1.5 rounded-md bg-ink-850/70 p-4 pl-8 text-sm text-ink-300">
           <li>Open <ExtLink href="https://console.cloud.google.com/projectcreate">Google Cloud Console</ExtLink> and create a project named “Job Hunter” (free).</li>
           <li>Enable the <ExtLink href="https://console.cloud.google.com/apis/library/gmail.googleapis.com">Gmail API</ExtLink> for that project.</li>

@@ -175,45 +175,11 @@ import { createHash } from "node:crypto";
 // src/shared/filters.ts
 var esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 var has = (text, phrase) => new RegExp(`\\b${esc(phrase.toLowerCase())}\\b`).test(text);
-function yearsRequired(text) {
-  let m = text.match(/(\d{1,2})\s*(?:-|to|–)\s*(\d{1,2})\s*\+?\s*(?:years|yrs)/);
-  if (m) return [Number(m[1]), Number(m[2])];
-  m = text.match(/(?:minimum|min\.?|at least)\s*(?:of\s*)?(\d{1,2})\s*\+?\s*(?:years|yrs)/) || text.match(/(\d{1,2})\s*\+\s*(?:years|yrs)/);
-  if (m) return [Number(m[1]), Number(m[1])];
-  return null;
-}
-function salaryLpa(s) {
-  const t = (s || "").toLowerCase().replace(/,/g, "");
-  let m = t.match(/(\d+(?:\.\d+)?)\s*(?:-|to)\s*(\d+(?:\.\d+)?)\s*(?:lpa|lacs?|lakhs?)/);
-  if (m) return Number(m[2]);
-  m = t.match(/(\d+(?:\.\d+)?)\s*(?:lpa|lacs?|lakhs?)/);
-  if (m) return Number(m[1]);
-  m = t.match(/(?:₹|inr|rs\.?)\s*(\d{5,8})/);
-  if (m) return Number(m[1]) / 1e5;
-  return null;
-}
 function check(job, prefs) {
-  const title = job.title.toLowerCase();
   const company = job.company.toLowerCase();
-  const loc = (job.location || "").toLowerCase();
-  const blob = [title, company, loc, (job.description || "").toLowerCase()].join(" ");
+  const blob = [job.title, company, job.location, job.description].join(" ").toLowerCase();
   for (const c of prefs.exclude_companies) if (c && company.includes(c.toLowerCase())) return `excluded company: ${c}`;
   for (const k of prefs.exclude_keywords) if (k && has(blob, k)) return `excluded keyword: ${k}`;
-  const yrs = yearsRequired(blob);
-  if (yrs && yrs[0] > prefs.years_max) return `needs ${yrs[0]}+ yrs (max ${prefs.years_max})`;
-  if (prefs.drop_below_min_salary && prefs.min_salary_lpa) {
-    const lpa2 = salaryLpa(job.salary);
-    if (lpa2 == null && !prefs.keep_unknown_salary) return "salary not listed";
-    if (lpa2 != null && lpa2 < prefs.min_salary_lpa) return `salary ${lpa2} LPA < ${prefs.min_salary_lpa}`;
-  }
-  const locs = prefs.locations.map((l) => l.toLowerCase()).filter(Boolean);
-  if (locs.length && loc) {
-    const aliases = { bangalore: ["bengaluru"], bengaluru: ["bangalore"], gurgaon: ["gurugram"], gurugram: ["gurgaon"] };
-    const want = locs.flatMap((l) => [l, ...aliases[l] || []]);
-    const remote = /remote|work from home|wfh|anywhere/.test(loc + " " + title);
-    const pan = /^india$|pan india|multiple locations|across india/.test(loc.trim());
-    if (!want.some((l) => loc.includes(l)) && !(remote && prefs.remote_ok) && !pan) return `location: ${job.location}`;
-  }
   return null;
 }
 
@@ -806,8 +772,8 @@ var Llm = class _Llm {
   // ---------------- Anthropic ----------------
   async parseAnthropic(system, content, schema, o) {
     if (!this.anthropicKey) throw new LLMNotConfigured("Anthropic API key is not set. Add it in Settings \u2192 AI engine.");
-    const client = new Anthropic({ apiKey: this.anthropicKey, maxRetries: 4 });
-    const resp = await client.messages.parse({
+    const client2 = new Anthropic({ apiKey: this.anthropicKey, maxRetries: 4 });
+    const resp = await client2.messages.parse({
       model: this.model,
       max_tokens: o.maxTokens ?? 8e3,
       system: system.map((b) => ({ type: "text", text: b.text, ...b.cache ? { cache_control: { type: "ephemeral" } } : {} })),
@@ -946,6 +912,199 @@ async function rescoreOne(p, j) {
   await scoreAndSave(await Llm.load(), p, j);
 }
 
+// server/gmail.ts
+import { z as z4 } from "npm:zod@4.6.7";
+var SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+var ALERT_SENDERS = ["linkedin.com", "naukri.com", "indeed.com", "instahyre.com", "foundit.in", "glassdoor.com", "iimjobs.com", "hirist.tech", "cutshort.io", "monsterindia.com", "shine.com"];
+var ORIGINS = [/^https:\/\/job\.avinashchavan\.com$/, /^https:\/\/jobhunter-app\.netlify\.app$/, /^https:\/\/[\w-]+--jobhunter-app\.netlify\.app$/, /^http:\/\/localhost:\d+$/];
+var redirectUri = () => `${env("SUPABASE_URL")}/functions/v1/jh-api/gmail-callback`;
+async function client() {
+  const id = await secret("GOOGLE_CLIENT_ID");
+  const sec = await secret("GOOGLE_CLIENT_SECRET");
+  if (!id || !sec) throw new SourceNotConfigured("Google client is not set up (JH_GOOGLE_CLIENT_ID / JH_GOOGLE_CLIENT_SECRET in Supabase secrets).");
+  return { id, secret: sec };
+}
+var tokenKey = (pid) => `gmail:${pid}`;
+async function getSecretRow(k) {
+  const { data } = await admin().from("jh_secrets").select("v").eq("k", k).maybeSingle();
+  return data?.v ?? null;
+}
+async function putSecretRow(k, v) {
+  const q = v == null ? admin().from("jh_secrets").delete().eq("k", k) : admin().from("jh_secrets").upsert({ k, v, updated_at: (/* @__PURE__ */ new Date()).toISOString() });
+  const { error } = await q;
+  if (error) throw new Error(error.message);
+}
+async function gmailConnectUrl(pid, origin) {
+  if (!ORIGINS.some((r) => r.test(origin))) throw new Error(`Gmail sign-in is not allowed from ${origin}`);
+  const c = await client();
+  const nonce = crypto.randomUUID();
+  await putSecretRow(`gmailstate:${nonce}`, JSON.stringify({ pid, origin, exp: Date.now() + 10 * 6e4 }));
+  const u = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+  u.search = new URLSearchParams({ client_id: c.id, redirect_uri: redirectUri(), response_type: "code", scope: SCOPE, access_type: "offline", prompt: "consent", include_granted_scopes: "true", state: nonce }).toString();
+  return u.toString();
+}
+async function gmailCallback(url) {
+  const nonce = url.searchParams.get("state") || "";
+  const raw = nonce ? await getSecretRow(`gmailstate:${nonce}`) : null;
+  if (!raw) return "https://job.avinashchavan.com/?gmail=error&why=expired";
+  await putSecretRow(`gmailstate:${nonce}`, null);
+  const st = JSON.parse(raw);
+  const back = (q) => `${st.origin}/?${q}`;
+  if (Date.now() > st.exp) return back("gmail=error&why=expired");
+  const err = url.searchParams.get("error");
+  if (err) return back(`gmail=error&why=${encodeURIComponent(err)}`);
+  const code = url.searchParams.get("code");
+  if (!code) return back("gmail=error&why=nocode");
+  const c = await client();
+  const r = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ code, client_id: c.id, client_secret: c.secret, redirect_uri: redirectUri(), grant_type: "authorization_code" })
+  });
+  const tok = await r.json();
+  if (!r.ok) return back(`gmail=error&why=${encodeURIComponent(tok.error_description || tok.error || "token")}`);
+  if (!tok.refresh_token) return back("gmail=error&why=norefresh");
+  await putSecretRow(tokenKey(st.pid), tok.refresh_token);
+  const prof = await gmail(tok.access_token, "profile");
+  await admin().from("jh_profiles").update({ gmail_email: prof.emailAddress }).eq("id", st.pid);
+  return back("gmail=connected");
+}
+async function gmailDisconnect(pid) {
+  const rt = await getSecretRow(tokenKey(pid));
+  if (rt) await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(rt)}`, { method: "POST" }).catch(() => {
+  });
+  await putSecretRow(tokenKey(pid), null);
+  await admin().from("jh_profiles").update({ gmail_email: null }).eq("id", pid);
+  return true;
+}
+var gmailConnected = async (pid) => !!await getSecretRow(tokenKey(pid));
+async function accessToken(pid) {
+  const rt = await getSecretRow(tokenKey(pid));
+  if (!rt) throw new SourceNotConfigured("Gmail is not connected for this person (Profile \u2192 Sources \u2192 Connect Gmail).");
+  const c = await client();
+  const r = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ refresh_token: rt, client_id: c.id, client_secret: c.secret, grant_type: "refresh_token" })
+  });
+  const j = await r.json();
+  if (!r.ok) throw new SourceNotConfigured(j.error === "invalid_grant" ? "Gmail access expired or was removed \u2014 connect Gmail again." : `Google token error: ${j.error_description || j.error}`);
+  return j.access_token;
+}
+async function gmail(token, path) {
+  const r = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, { headers: { authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(2e4) });
+  if (r.status === 401) throw new SourceNotConfigured("Gmail access was revoked or expired \u2014 connect Gmail again.");
+  if (!r.ok) throw new Error(`Gmail API HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  return r.json();
+}
+var b64 = (s) => {
+  const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/"));
+  return new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+};
+function partsOf(payload) {
+  let html = "";
+  let text = "";
+  const walk = (p) => {
+    if (!p) return;
+    if (p.mimeType === "text/html" && p.body?.data) html += b64(p.body.data);
+    else if (p.mimeType === "text/plain" && p.body?.data) text += b64(p.body.data);
+    for (const c of p.parts ?? []) walk(c);
+  };
+  walk(payload);
+  return { html, text };
+}
+function cleanUrl(href) {
+  const h = href.replace(/&amp;/g, "&");
+  const li = h.match(/linkedin\.com\/(?:comm\/)?jobs\/view\/(\d+)/i) || h.match(/currentJobId=(\d+)/i);
+  if (li) return `https://www.linkedin.com/jobs/view/${li[1]}/`;
+  try {
+    const u = new URL(h);
+    if (/naukri\.com$/i.test(u.hostname)) return `${u.origin}${u.pathname}`;
+  } catch {
+  }
+  return h;
+}
+function htmlToText(html) {
+  return html.replace(/<(script|style)[\s\S]*?<\/\1>/gi, "").replace(/<a\s[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi, (_m, href, inner) => {
+    const t = inner.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    return /jobs?\/view|job-listings|naukri\.com\/.+-\d{6,}|jobId=|currentJobId=|indeed\.com\/(rc\/clk|viewjob|pagead)|jk=|instahyre\.com\/job|foundit\.in\/job|glassdoor\.(com|co\.in)\/job|iimjobs\.com\/j\/|hirist\.tech\/j\/|cutshort\.io\/job/i.test(href) ? ` ${t} <${cleanUrl(href)}> ` : ` ${t} `;
+  }).replace(/<br\s*\/?>|<\/(p|div|tr|li|h\d|table)>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
+}
+var Extracted = z4.object({
+  jobs: z4.array(
+    z4.object({
+      title: z4.string(),
+      company: z4.string(),
+      location: z4.string().describe('City / "Remote" / empty if not shown'),
+      url: z4.string().describe("The job link exactly as given in <...>, or empty"),
+      salary: z4.string().describe("As shown, or empty"),
+      experience: z4.string().describe("Years asked, as shown, or empty")
+    })
+  )
+});
+var SYSTEM = 'You extract job postings from a job-alert email (LinkedIn, Naukri, Indeed, Instahyre, Foundit, etc.). Return every distinct job listed. Copy title, company, location exactly. For url use the link shown in angle brackets next to that job. Ignore ads, "people also viewed", courses, community posts, company reviews and settings links. Only include items that have a job link. If the email lists no jobs, return an empty list.';
+async function fetchGmailJobs(p, log, deadline) {
+  const token = await accessToken(p.id);
+  const s = (await getSettings()).gmail;
+  const senders = ALERT_SENDERS.map((d) => `from:${d}`).join(" OR ");
+  const q = `newer_than:${s.lookbackDays}d (${senders}) -from:messages-noreply@linkedin.com -from:invitations@linkedin.com`;
+  const list = await gmail(token, `messages?maxResults=${s.maxMessages}&q=${encodeURIComponent(q)}`);
+  const ids = (list.messages ?? []).map((m) => m.id);
+  const fresh = [];
+  for (const id of ids) if (!await kvGet(`gmail_seen:${p.id}:${id}`)) fresh.push(id);
+  log(`gmail: ${ids.length} alert emails in last ${s.lookbackDays}d, ${fresh.length} not read yet`);
+  const llm = await Llm.load();
+  const jobs = [];
+  let left = fresh.length;
+  for (const id of fresh) {
+    if (Date.now() > deadline) {
+      log(`gmail: ${left} emails left for the next check (time limit)`);
+      break;
+    }
+    left--;
+    const m = await gmail(token, `messages/${id}?format=full`);
+    const headers = Object.fromEntries((m.payload?.headers ?? []).map((h) => [h.name.toLowerCase(), h.value]));
+    const from = headers.from || "";
+    const subject = headers.subject || "";
+    const date = headers.date ? new Date(headers.date).toISOString().slice(0, 10) : "";
+    const site = (ALERT_SENDERS.find((d) => from.toLowerCase().includes(d)) || "other").split(".")[0];
+    const { html, text } = partsOf(m.payload);
+    const body = (html ? htmlToText(html) : text).slice(0, 14e3);
+    const hasJobLink = html ? /<https?:\/\/[^>]+>/.test(body) : /https?:\/\/\S*(jobs?\/view|job-listings|viewjob|jk=)/i.test(body);
+    if (!hasJobLink || !/job|hiring|opening|vacanc|role|position/i.test(subject + " " + body.slice(0, 2e3))) {
+      await kvSet(`gmail_seen:${p.id}:${id}`, "1");
+      continue;
+    }
+    try {
+      const out = await llm.parse(SYSTEM, { text: `From: ${from}
+Subject: ${subject}
+
+${body}` }, Extracted, { effort: "low", maxTokens: 6e3 });
+      for (const j of out.jobs) {
+        if (!j.title || !j.company || !/^https?:\/\//.test(j.url || "")) continue;
+        jobs.push(
+          makeJob({
+            title: j.title,
+            company: j.company,
+            location: j.location,
+            salary: j.salary,
+            url: cleanUrl(j.url),
+            description: [j.experience && `Experience: ${j.experience}`, `From a ${site} job alert: "${subject}"`].filter(Boolean).join("\n"),
+            source: `gmail-${site}`,
+            posted_at: date,
+            external_id: (j.url.match(/(\d{6,})/) || [])[1] || ""
+          })
+        );
+      }
+      log(`gmail: "${subject.slice(0, 70)}" \u2192 ${out.jobs.length} jobs`);
+      await kvSet(`gmail_seen:${p.id}:${id}`, "1");
+    } catch (e) {
+      log(`gmail: could not read "${subject.slice(0, 60)}": ${e?.message ?? e}`);
+    }
+  }
+  return jobs;
+}
+
 // server/runner.ts
 var IST = () => (/* @__PURE__ */ new Date()).toLocaleTimeString("en-GB", { timeZone: "Asia/Kolkata", hour12: false });
 var RUN_BUDGET_MS = 14e4;
@@ -973,7 +1132,8 @@ async function runProfile(p, runId, only) {
   };
   const sources = [
     ["job_api", () => fetchApis(p, s, log)],
-    ["careers", () => fetchBoards(p, log)]
+    ["careers", () => fetchBoards(p, log)],
+    ["gmail", () => fetchGmailJobs(p, log, started + 105e3)]
   ];
   try {
     log(`Run started for ${p.name}`);
@@ -1055,7 +1215,7 @@ async function resumeBytes(path) {
   if (error || !data) throw new Error(`Could not read the uploaded resume: ${error?.message ?? "missing"}`);
   return { bytes: new Uint8Array(await data.arrayBuffer()), ext: (path.split(".").pop() || "").toLowerCase() };
 }
-var b64 = (u) => {
+var b642 = (u) => {
   let s = "";
   for (let i = 0; i < u.length; i += 32768) s += String.fromCharCode(...u.subarray(i, i + 32768));
   return btoa(s);
@@ -1069,7 +1229,7 @@ var actions = {
     const llm = await Llm.load();
     let parsed;
     if (ext === "pdf" && llm.engine === "anthropic") {
-      parsed = await llm.parse(RESUME_SYSTEM, { text: "Extract the candidate profile from this resume.", pdf: b64(bytes) }, ResumeSchema, { effort: "medium" });
+      parsed = await llm.parse(RESUME_SYSTEM, { text: "Extract the candidate profile from this resume.", pdf: b642(bytes) }, ResumeSchema, { effort: "medium" });
     } else {
       const text = await resumeText(bytes, ext);
       if (text.trim().length < 200) throw new HttpError(422, "Could not read text from this resume (scanned image?). Try a text-based PDF or Word file.");
@@ -1119,6 +1279,16 @@ var actions = {
     await rescoreOne(p, j);
     return true;
   },
+  // ---- Gmail job alerts
+  async "gmail.connect"({ pid, origin }) {
+    return gmailConnectUrl(Number(pid), String(origin || ""));
+  },
+  async "gmail.disconnect"({ pid }) {
+    return gmailDisconnect(Number(pid));
+  },
+  async "gmail.connected"({ pid }) {
+    return gmailConnected(Number(pid));
+  },
   // ---- AI engine
   async "llm.models"() {
     return (await Llm.load()).models();
@@ -1162,6 +1332,15 @@ async function cronTick() {
 Deno.serve(async (req) => {
   reqHeaders = req.headers.get("access-control-request-headers") ?? "";
   if (req.method === "OPTIONS") return new Response(null, { headers: cors() });
+  const url = new URL(req.url);
+  if (req.method === "GET" && url.pathname.endsWith("/gmail-callback")) {
+    try {
+      return Response.redirect(await gmailCallback(url), 302);
+    } catch (e) {
+      console.error("gmail callback", e);
+      return new Response(`Gmail connection failed: ${String(e?.message ?? e).slice(0, 200)}`, { status: 500 });
+    }
+  }
   if (req.method !== "POST") return json({ error: "POST only" }, 405);
   try {
     const cron = req.headers.get("x-jh-cron");

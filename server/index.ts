@@ -5,6 +5,7 @@ import { contactFromText, mergeParsed, RESUME_SYSTEM, ResumeSchema, resumePrompt
 import { admin, getSettings, HttpError, requireMember, secret, secretStatus } from './ctx'
 import { RUN_BUDGET_MS, runProfile } from './runner'
 import { rescoreOne, scorePending } from './matcher'
+import { gmailCallback, gmailConnected, gmailConnectUrl, gmailDisconnect } from './gmail'
 import { getJob, getProfile, kvGet, kvSet, listProfiles, liveRun, profilesWithUnscored, startRun } from './store'
 import { Llm, LLMNotConfigured } from './llm'
 import { resumeText } from './resume'
@@ -103,6 +104,17 @@ const actions: Record<string, Handler> = {
     return true
   },
 
+  // ---- Gmail job alerts
+  async 'gmail.connect'({ pid, origin }) {
+    return gmailConnectUrl(Number(pid), String(origin || ''))
+  },
+  async 'gmail.disconnect'({ pid }) {
+    return gmailDisconnect(Number(pid))
+  },
+  async 'gmail.connected'({ pid }) {
+    return gmailConnected(Number(pid))
+  },
+
   // ---- AI engine
   async 'llm.models'() {
     return (await Llm.load()).models()
@@ -153,6 +165,15 @@ Deno.serve(async (req) => {
   // allow whatever headers the browser client asks for (newer supabase-js versions add some)
   reqHeaders = req.headers.get('access-control-request-headers') ?? ''
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors() })
+  const url = new URL(req.url)
+  if (req.method === 'GET' && url.pathname.endsWith('/gmail-callback')) {
+    try {
+      return Response.redirect(await gmailCallback(url), 302)
+    } catch (e: any) {
+      console.error('gmail callback', e)
+      return new Response(`Gmail connection failed: ${String(e?.message ?? e).slice(0, 200)}`, { status: 500 })
+    }
+  }
   if (req.method !== 'POST') return json({ error: 'POST only' }, 405)
   try {
     const cron = req.headers.get('x-jh-cron')
