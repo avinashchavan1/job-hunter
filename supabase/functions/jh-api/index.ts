@@ -164,14 +164,6 @@ async function secrets() {
 async function secret(k) {
   return ((await secrets())[k] ?? "").trim() || env(`JH_${k}`).trim();
 }
-async function setSecret(k, v) {
-  if (!SECRET_KEYS.includes(k)) throw new HttpError(400, "unknown key");
-  const val = v.trim();
-  const q = val ? admin().from("jh_secrets").upsert({ k, v: val, updated_at: (/* @__PURE__ */ new Date()).toISOString() }) : admin().from("jh_secrets").delete().eq("k", k);
-  const { error } = await q;
-  if (error) throw new Error(error.message);
-  _secrets = null;
-}
 async function secretStatus() {
   const s = await secrets();
   return Object.fromEntries(SECRET_KEYS.map((k) => [k, !!((s[k] ?? "").trim() || env(`JH_${k}`).trim())]));
@@ -959,10 +951,8 @@ var actions = {
   async "secrets.status"() {
     return secretStatus();
   },
-  async "secrets.set"({ key, value }, who) {
-    if (!who.isAdmin) throw new HttpError(403, `Only an admin can change keys. ${who.email} is a member, not an admin.`);
-    await setSecret(key, String(value ?? ""));
-    return secretStatus();
+  async "secrets.set"() {
+    throw new HttpError(403, "Keys are set by the admin in Supabase \u2192 Edge Functions \u2192 Secrets (names start with JH_).");
   },
   async "secrets.test"({ which }) {
     try {

@@ -49,6 +49,49 @@ export function KeyField({
     setBusy(false)
   }
 
+  // Website: keys are set by the admin in Supabase (Edge Functions → Secrets), never typed into the app.
+  if (window.api.isWeb) {
+    const recheck = async (): Promise<void> => {
+      setBusy(true)
+      setRes(null)
+      try {
+        const st = await window.api.secrets.status()
+        onSaved(st)
+        if (st[k] && test) setRes(await window.api.secrets.test(test))
+        else if (!st[k]) setRes({ ok: false, message: 'Still not set.' })
+      } catch (e: any) {
+        setRes({ ok: false, message: String(e?.message ?? e) })
+      }
+      setBusy(false)
+    }
+    return (
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <label className="label !mb-0">{label}</label>
+          {isSet ? (
+            <span className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={12} /> Set</span>
+          ) : (
+            <span className="text-xs text-ink-400">Not set</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2 rounded-md border border-line px-3 py-2 text-xs text-ink-300">
+          <KeyRound size={13} className="shrink-0 text-ink-400" />
+          <span className="flex-1">
+            {isSet ? 'Set by the admin in Supabase.' : <>Admin: add <code className="selectable font-mono text-ink-100">JH_{k}</code> in Supabase → Edge Functions → Secrets.</>}
+          </span>
+          <button className="btn btn-outline !py-1" disabled={busy} onClick={recheck}>{busy ? <Spinner size={12} /> : isSet && test ? 'Test' : 'Check again'}</button>
+        </div>
+        {help && <p className="mt-1.5 text-xs text-ink-400">{help}</p>}
+        {res && (
+          <p className={cx('mt-2 flex items-start gap-1.5 text-xs', res.ok ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300')}>
+            {res.ok ? <CheckCircle2 size={13} className="mt-px shrink-0" /> : <XCircle size={13} className="mt-px shrink-0" />}
+            {res.message}
+          </p>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div>
       <div className="mb-1.5 flex items-center justify-between">

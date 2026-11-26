@@ -1,8 +1,8 @@
 // jh-api: the one server function behind the Job Hunter website.
 // Every call must come from a signed-in member (jh_members). Keys stay on the server.
-import { DEFAULT_PREFS, type ParsedProfile, type Prefs, type SecretKey } from '../src/shared/types'
+import { DEFAULT_PREFS, type ParsedProfile, type Prefs } from '../src/shared/types'
 import { contactFromText, mergeParsed, RESUME_SYSTEM, ResumeSchema, resumePrompt } from '../src/shared/resume'
-import { admin, getSettings, HttpError, requireMember, secret, secretStatus, setSecret } from './ctx'
+import { admin, getSettings, HttpError, requireMember, secret, secretStatus } from './ctx'
 import { runProfile } from './runner'
 import { getProfile, kvGet, kvSet, listProfiles, liveRun, startRun } from './store'
 import { Llm, LLMNotConfigured } from './llm'
@@ -71,10 +71,8 @@ const actions: Record<string, Handler> = {
   async 'secrets.status'() {
     return secretStatus()
   },
-  async 'secrets.set'({ key, value }, who) {
-    if (!who.isAdmin) throw new HttpError(403, `Only an admin can change keys. ${who.email} is a member, not an admin.`)
-    await setSecret(key as SecretKey, String(value ?? ''))
-    return secretStatus()
+  async 'secrets.set'() {
+    throw new HttpError(403, 'Keys are set by the admin in Supabase → Edge Functions → Secrets (names start with JH_).')
   },
   async 'secrets.test'({ which }) {
     try {
