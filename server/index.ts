@@ -155,7 +155,15 @@ async function cronTick(): Promise<unknown> {
     const lock = Number((await kvGet(lockKey)) || 0)
     if (Date.now() - lock < RUN_BUDGET_MS + 10_000) continue // a previous tick is still scoring
     await kvSet(lockKey, String(Date.now()))
-    EdgeRuntime.waitUntil(scorePending(p, Date.now() + RUN_BUDGET_MS, () => {}).catch((e) => console.error('tick scoring', e)))
+    // keep the last tick's scoring log so problems are visible (Settings → Activity reads runs; this is the quiet background part)
+    const lines: string[] = []
+    const t0 = new Date().toISOString()
+    EdgeRuntime.waitUntil(
+      scorePending(p, Date.now() + RUN_BUDGET_MS, (l) => lines.push(l))
+        .then((r) => lines.push(`done: ${r.scored} scored, ${r.score_failed} failed, ${r.left} left`))
+        .catch((e) => lines.push(`stopped: ${e?.message ?? e}`))
+        .finally(() => kvSet(`scoring_log:${pid}`, JSON.stringify({ at: t0, lines: lines.slice(-30) })))
+    )
     return { scoring: p.name }
   }
   return { done: 'everyone checked today, nothing waiting to score' }

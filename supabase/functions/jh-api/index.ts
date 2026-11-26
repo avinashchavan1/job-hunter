@@ -713,6 +713,8 @@ import { zodOutputFormat } from "npm:@anthropic-ai/sdk@1.12.0/helpers/zod";
 import { z as z3 } from "npm:zod@4.6.7";
 var LLMNotConfigured = class extends Error {
 };
+var LLMDailyLimit = class extends LLMNotConfigured {
+};
 var cooldown = /* @__PURE__ */ new Map();
 var lastVia = "";
 var Llm = class _Llm {
@@ -794,6 +796,8 @@ var Llm = class _Llm {
     });
     const body = await r.text();
     if (r.status === 401 || r.status === 403) throw new LLMNotConfigured(`AI server rejected the request (HTTP ${r.status}): ${body.slice(0, 200)}`);
+    if (r.status === 429 && /per-day|per day|daily/i.test(body))
+      throw new LLMDailyLimit("The AI\u2019s free daily limit is used up (OpenRouter allows ~50 free requests a day without credits). Scoring continues automatically tomorrow \u2014 or add $10 of OpenRouter credits for 1,000 free requests a day.");
     if (!r.ok) {
       const err = new Error(`AI server HTTP ${r.status}: ${body.slice(0, 300)}`);
       err.status = r.status;
@@ -1317,8 +1321,11 @@ async function cronTick() {
     const lock = Number(await kvGet(lockKey) || 0);
     if (Date.now() - lock < RUN_BUDGET_MS + 1e4) continue;
     await kvSet(lockKey, String(Date.now()));
-    EdgeRuntime.waitUntil(scorePending(p, Date.now() + RUN_BUDGET_MS, () => {
-    }).catch((e) => console.error("tick scoring", e)));
+    const lines = [];
+    const t0 = (/* @__PURE__ */ new Date()).toISOString();
+    EdgeRuntime.waitUntil(
+      scorePending(p, Date.now() + RUN_BUDGET_MS, (l) => lines.push(l)).then((r) => lines.push(`done: ${r.scored} scored, ${r.score_failed} failed, ${r.left} left`)).catch((e) => lines.push(`stopped: ${e?.message ?? e}`)).finally(() => kvSet(`scoring_log:${pid}`, JSON.stringify({ at: t0, lines: lines.slice(-30) })))
+    );
     return { scoring: p.name };
   }
   return { done: "everyone checked today, nothing waiting to score" };

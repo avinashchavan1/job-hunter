@@ -8,6 +8,8 @@ import type { AppSettings } from '../src/shared/types'
 import { getSettings, secret } from './ctx'
 
 export class LLMNotConfigured extends Error {}
+/** The AI account's daily allowance is used up: stop for today instead of retrying every job. */
+export class LLMDailyLimit extends LLMNotConfigured {}
 
 export type Block = { text: string; cache?: boolean }
 type Opts = { effort?: 'low' | 'medium' | 'high'; maxTokens?: number }
@@ -97,6 +99,8 @@ export class Llm {
     })
     const body = await r.text()
     if (r.status === 401 || r.status === 403) throw new LLMNotConfigured(`AI server rejected the request (HTTP ${r.status}): ${body.slice(0, 200)}`)
+    if (r.status === 429 && /per-day|per day|daily/i.test(body))
+      throw new LLMDailyLimit('The AI’s free daily limit is used up (OpenRouter allows ~50 free requests a day without credits). Scoring continues automatically tomorrow — or add $10 of OpenRouter credits for 1,000 free requests a day.')
     if (!r.ok) {
       const err = new Error(`AI server HTTP ${r.status}: ${body.slice(0, 300)}`) as Error & { status?: number }
       err.status = r.status
