@@ -154,3 +154,23 @@ export function timeAgo(iso?: string | null): string {
   const days = Math.floor(d / 86400)
   return days === 1 ? 'yesterday' : `${days}d ago`
 }
+
+/** "just now", "5 minutes ago", "1 hour ago", "3 days ago", "2 weeks ago" — spelled out, for when something was marked. */
+export function longAgo(iso?: string | null): string {
+  if (!iso) return ''
+  const s = (Date.now() - new Date(iso).getTime()) / 1000
+  const n = (v: number, unit: string): string => `${v} ${unit}${v === 1 ? '' : 's'} ago`
+  if (s < 60) return 'just now'
+  if (s < 3600) return n(Math.floor(s / 60), 'minute')
+  if (s < 86400) return n(Math.floor(s / 3600), 'hour')
+  if (s < 14 * 86400) return n(Math.floor(s / 86400), 'day')
+  if (s < 60 * 86400) return n(Math.floor(s / (7 * 86400)), 'week')
+  return n(Math.floor(s / (30 * 86400)), 'month')
+}
+
+/** "27 Nov, 3:40 pm" */
+export function whenExact(iso?: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return `${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}, ${d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })}`
+}

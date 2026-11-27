@@ -7,7 +7,7 @@ import { checkTrust, Trust } from '@shared/trust'
 import { checks } from '@shared/filters'
 import { QuickAnswers, withDefaults } from '../components/Answers'
 import { InterviewPrep, TailoredResume } from '../components/Assist'
-import { CopyButton, ScoreRing, Spinner, cx, timeAgo } from '../ui'
+import { CopyButton, ScoreRing, Spinner, cx, longAgo, timeAgo, whenExact } from '../ui'
 import { RunLog } from '../components/RunLog'
 
 type View = 'review' | 'shortlisted' | 'applied' | 'all' | 'hidden'
@@ -208,10 +208,16 @@ function JobRow({ m, trust, profile, open, onToggle, onStatus, onRescored }: {
         <button className="min-w-0 flex-1 text-left" onClick={onToggle}>
           <div className="flex flex-wrap items-center gap-x-2">
             <span className="line-clamp-2 text-[14px] font-medium md:truncate">{m.title}</span>
-            {applied && <span className="text-xs text-emerald-700 dark:text-emerald-400">{m.status === 'applied' ? 'Applied' : m.status === 'interview' ? 'Interview' : 'Offer'}{m.status_at ? ` ${timeAgo(m.status_at)}` : ''}</span>}
             <TrustTag t={trust} />
           </div>
           <div className="mt-0.5 truncate text-xs text-ink-400">{meta.join(' · ')}</div>
+          {applied && (
+            <div className="mt-1 flex flex-wrap items-center gap-x-1 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+              <CheckCircle2 size={12} />
+              {m.status === 'applied' ? 'Applied' : m.status === 'interview' ? 'Interview' : 'Offer'}{m.status_at ? ` ${longAgo(m.status_at)}` : ''}
+              {m.status_at && <span className="font-normal text-ink-400">· {whenExact(m.status_at)}</span>}
+            </div>
+          )}
           <Checks m={m} prefs={profile.prefs} />
         </button>
         <div className="flex w-full items-center justify-end gap-1 md:w-auto">

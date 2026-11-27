@@ -2,7 +2,7 @@ import { DragEvent, ReactNode, useEffect, useMemo, useState } from 'react'
 import { BellRing, ExternalLink, GraduationCap, StickyNote, X } from 'lucide-react'
 import { InterviewPrep } from '../components/Assist'
 import type { Match, Profile, Status } from '@shared/types'
-import { ScoreRing, Spinner, cx, timeAgo } from '../ui'
+import { ScoreRing, Spinner, cx, longAgo, whenExact } from '../ui'
 
 const COLUMNS: { key: Status; title: string; hint: string; tone: string }[] = [
   { key: 'shortlisted', title: 'Shortlisted', hint: 'Apply to these next', tone: '' },
@@ -134,7 +134,7 @@ function Card({ m, onDragStart, onNotes, onPrep, onMove }: { m: Match; onDragSta
         m.notes && <p className="selectable mt-2 whitespace-pre-wrap rounded-lg bg-ink-900 px-2 py-1.5 text-[11px] text-ink-300">{m.notes}</p>
       )}
       <div className="mt-2 flex items-center justify-between text-[11px] text-ink-400">
-        <span>{m.status_at ? timeAgo(m.status_at) : ''}</span>
+        <span title={whenExact(m.status_at)}>{m.status_at ? `${m.status === 'applied' ? 'Applied ' : ''}${longAgo(m.status_at)}` : ''}</span>
         <select className="rounded border border-line bg-field px-1 py-0.5 text-[12px] text-ink-100 md:hidden" value={m.status} onChange={(e) => onMove(e.target.value as Status)} aria-label="Move to">
           {COLUMNS.map((c) => <option key={c.key} value={c.key}>{c.title}</option>)}
         </select>

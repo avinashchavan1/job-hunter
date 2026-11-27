@@ -236,8 +236,11 @@ export const webApi: Api = {
     },
     setStatus: async (pid, jid, status, notes) => {
       if (!STATUSES.includes(status)) throw new Error(`status must be one of ${STATUSES.join(', ')}`)
-      const row: Record<string, unknown> = { profile_id: pid, job_id: jid, status, updated_at: new Date().toISOString() }
+      const row: Record<string, unknown> = { profile_id: pid, job_id: jid, status }
       if (notes !== undefined) row.notes = notes
+      // the time shown is when the status changed ("Applied 3 days ago"): editing notes keeps it
+      const cur = must(await sb.from('jh_applications').select('status').eq('profile_id', pid).eq('job_id', jid).maybeSingle()) as { status: string } | null
+      if (cur?.status !== status) row.updated_at = new Date().toISOString()
       must(await sb.from('jh_applications').upsert(row))
     },
     rescore: async (pid, jid) => {
