@@ -18,7 +18,7 @@ export function AnswersEditor({ value, onChange }: { value: Prefs['answers']; on
   return (
     <div className="space-y-2.5">
       {value.map((a, i) => (
-        <div key={i} className="grid grid-cols-[220px_1fr_auto] items-start gap-2">
+        <div key={i} className="grid grid-cols-1 sm:grid-cols-[220px_1fr_auto] items-start gap-2">
           <input className="field !py-1.5 text-xs font-medium" value={a.label} onChange={(e) => set(i, { label: e.target.value })} />
           <textarea className="field !py-1.5 text-sm" rows={a.value.length > 80 ? 3 : 1} value={a.value} placeholder="Your answer" onChange={(e) => set(i, { value: e.target.value })} />
           <button className="mt-1.5 rounded p-1 text-ink-400 hover:bg-hover hover:text-rose-700 dark:hover:text-rose-300" title="Remove" onClick={() => onChange(value.filter((_, j) => j !== i))}><X size={14} /></button>

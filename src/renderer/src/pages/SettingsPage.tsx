@@ -40,7 +40,7 @@ export function SettingsPage({ secrets, setSecrets, profile, running }: { secret
   const nextLabel = next ? new Date(next).toLocaleString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }) : null
 
   return (
-    <div className="mx-auto max-w-4xl px-8 pb-10 pt-4">
+    <div className="mx-auto max-w-4xl px-4 md:px-8 pb-10 pt-4">
       <h1 className="h-page">Settings</h1>
       <nav className="mb-6 mt-4 flex gap-5 border-b border-line">
         {tabs.map((t) => (
@@ -89,7 +89,7 @@ export function SettingsPage({ secrets, setSecrets, profile, running }: { secret
                 help={<>Sign up at <ExtLink href="https://rapidapi.com/letscrape-6bRBa3QguO5/api/jsearch">RapidAPI → JSearch</ExtLink>, subscribe to the free Basic plan, copy “X-RapidAPI-Key”. 200 searches a month; Job Hunter spreads them over the month.</>} />
               <KeyField k="JOOBLE_API_KEY" label="Jooble — large India coverage" isSet={secrets.JOOBLE_API_KEY} onSaved={setSecrets}
                 help={<>Free key from <ExtLink href="https://jooble.org/api/about">jooble.org/api/about</ExtLink> (fill the short form; the key arrives by email).</>} />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <KeyField k="ADZUNA_APP_ID" label="Adzuna app id" isSet={secrets.ADZUNA_APP_ID} onSaved={setSecrets} help={<>Free at <ExtLink href="https://developer.adzuna.com/signup">developer.adzuna.com</ExtLink>.</>} />
                 <KeyField k="ADZUNA_APP_KEY" label="Adzuna app key" isSet={secrets.ADZUNA_APP_KEY} onSaved={setSecrets} />
               </div>
@@ -105,7 +105,7 @@ export function SettingsPage({ secrets, setSecrets, profile, running }: { secret
       {tab === 'advanced' && (
         <div>
           <Section title="Search">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="label">Max searches per API per run</label>
                 <input type="number" className="field" value={s.jobApi.maxQueriesPerRun} onChange={(e) => save({ jobApi: { ...s.jobApi, maxQueriesPerRun: Number(e.target.value) } })} />
@@ -124,7 +124,7 @@ export function SettingsPage({ secrets, setSecrets, profile, running }: { secret
             <div className="mt-4"><Toggle checked={s.schedule.weekdaysOnly} onChange={(v) => save({ schedule: { ...s.schedule, weekdaysOnly: v } })} label="Daily check on weekdays only" /></div>
           </Section>
           {!window.api.isWeb && <Section title="Naukri / LinkedIn reading" desc="Read-only and slow on purpose. Stops on any CAPTCHA, login wall or unusual-activity page.">
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="label">Pages per site per day</label>
                 <input type="number" className="field" value={s.browser.pagesPerSitePerDay} onChange={(e) => save({ browser: { ...s.browser, pagesPerSitePerDay: Number(e.target.value) } })} />

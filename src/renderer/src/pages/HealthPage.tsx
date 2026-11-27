@@ -27,13 +27,13 @@ export function HealthPage({ running, embedded }: { running: boolean; embedded?:
   const runsLeft = limit ? Math.floor((limit - used) / Math.max(1, q.perRun * Math.max(1, h.profiles.filter((p: any) => p.active).length))) : null
 
   return (
-    <div className={embedded ? 'space-y-5' : 'mx-auto max-w-5xl space-y-5 px-8 py-6'}>
+    <div className={embedded ? 'space-y-5' : 'mx-auto max-w-5xl space-y-5 px-4 md:px-8 py-6'}>
       {!embedded && <header>
         <h1 className="h-page">Health & quotas</h1>
         <p className="mt-1 text-sm text-ink-400">Everything the daily run depends on, at a glance. Refreshes every 10 seconds.</p>
       </header>}
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="card p-5">
           <div className="flex items-center gap-2 text-sm font-medium"><Cpu size={16} className="text-ink-400" /> AI engine <span className="ml-auto"><Dot tone={llmTone} /></span></div>
           <p className="mt-2 truncate text-xs text-ink-400" title={h.llm.label}>{h.llm.label}</p>
@@ -96,7 +96,7 @@ export function HealthPage({ running, embedded }: { running: boolean; embedded?:
                   <Chip tone={p.sources.naukri ? 'good' : 'default'}>Naukri {p.sources.naukri ? `· ${p.naukriPages}/${p.pageCap} pages today` : '· off'}</Chip>
                   <Chip tone={p.sources.linkedin ? 'good' : 'default'}>LinkedIn {p.sources.linkedin ? `· ${p.linkedinPages}/${p.pageCap} pages today` : '· off'}</Chip>
                 </div>
-                <div className={cx('w-56 shrink-0 text-right text-xs', rTone)}>
+                <div className={cx('shrink-0 text-xs sm:w-56 sm:text-right', rTone)}>
                   <span className="inline-flex items-center gap-1.5"><RIcon size={13} /> {r ? `${r.status} · ${timeAgo(r.started_at)}` : 'never run'}</span>
                   {r && <div className="text-ink-400">{r.stats.new ?? 0} new · {r.stats.scored ?? 0} scored{r.alerts?.length ? ` · ${r.alerts.length} alert(s)` : ''}</div>}
                 </div>

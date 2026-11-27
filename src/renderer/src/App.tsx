@@ -97,8 +97,17 @@ export default function App(): ReactNode {
   ]
 
   return (
-    <div className="flex h-full">
-      <aside className="relative flex w-56 shrink-0 flex-col border-r border-line bg-sidebar px-2.5 pb-3 pt-12">
+    <div className="flex h-full flex-col md:flex-row">
+      {/* phones: top bar with the person switcher (the account photo sits at its right end) */}
+      <div className="flex shrink-0 items-center gap-2 border-b border-line bg-sidebar py-2 pl-3 pr-14 pt-[max(0.5rem,env(safe-area-inset-top))] md:hidden">
+        <img src={logo} alt="" className="h-6 w-6" draggable={false} />
+        <select className="field min-w-0 flex-1 !py-1" value={profile.id} onChange={(e) => setPid(Number(e.target.value))} aria-label="Person">
+          {profiles.map((p) => <option key={p.id} value={p.id}>{p.name}{running.has(p.id) ? ' · checking…' : ''}{!p.active ? ' · paused' : ''}</option>)}
+        </select>
+        <button className="rounded-md p-1.5 text-ink-400 hover:bg-hover hover:text-ink-100" title="Add profile" aria-label="Add profile" onClick={() => setAdding(true)}><Plus size={18} /></button>
+      </div>
+
+      <aside className="relative hidden w-56 shrink-0 flex-col border-r border-line bg-sidebar px-2.5 pb-3 pt-12 md:flex">
         <div className="drag absolute inset-x-0 top-0 h-10" />
         <div className="mb-5 flex items-center gap-2 px-2">
           <img src={logo} alt="" className="h-6 w-6" draggable={false} />
@@ -140,10 +149,10 @@ export default function App(): ReactNode {
         </div>
       </aside>
 
-      <main className="relative flex-1 overflow-auto bg-ink-950">
-        <div className="drag sticky top-0 z-10 h-8 bg-ink-950/80 backdrop-blur" />
+      <main className="relative min-h-0 flex-1 overflow-auto bg-ink-950">
+        <div className="drag sticky top-0 z-10 hidden h-8 bg-ink-950/80 backdrop-blur md:block" />
         {runErr && (
-          <div className="mx-auto mb-2 max-w-5xl px-8">
+          <div className="mx-auto mb-2 max-w-5xl px-4 md:px-8">
             <div className="rounded-md border border-rose-500/30 px-3 py-2 text-sm text-rose-700 dark:text-rose-300">{runErr}</div>
           </div>
         )}
@@ -152,6 +161,16 @@ export default function App(): ReactNode {
         {page === 'board' && <BoardPage profile={profile} />}
         {page === 'settings' && <SettingsPage secrets={secrets} setSecrets={setSecrets} profile={profile} running={running.size > 0} />}
       </main>
+
+      {/* phones: tab bar at the bottom */}
+      <nav className="grid shrink-0 grid-cols-4 border-t border-line bg-sidebar pb-[env(safe-area-inset-bottom)] md:hidden">
+        {[...nav, { key: 'settings' as Page, label: 'Settings', icon: <Settings size={16} /> }].map((n) => (
+          <button key={n.key} onClick={() => setPage(n.key)}
+            className={cx('flex flex-col items-center gap-0.5 py-2 text-[11px] transition [&_svg]:h-5 [&_svg]:w-5', page === n.key ? 'text-ink-100' : 'text-ink-400')}>
+            {n.icon} {n.label}
+          </button>
+        ))}
+      </nav>
     </div>
   )
 }

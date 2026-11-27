@@ -49,7 +49,7 @@ export function AiEngine({
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {opts.map((o) => (
           <button
             key={o.key}
@@ -105,7 +105,7 @@ export function AiEngine({
           </div>
           <KeyField k="LLM_API_KEY" label="Server API key" isSet={secrets.LLM_API_KEY} onSaved={setSecrets} test="llm"
             help={<>For FreeLLMAPI, copy the unified key (starts with <code>freellmapi-</code>) from the Keys page header at <ExtLink href="http://localhost:3001">localhost:3001</ExtLink>. Ollama / LM Studio need none.</>} />
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="label">Model</label>
               <select className="field" value={s.llm.model} onChange={(e) => setLlm({ model: e.target.value })}>

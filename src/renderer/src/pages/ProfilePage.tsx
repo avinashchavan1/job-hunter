@@ -59,7 +59,7 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
 
   const pr = profile.profile
   return (
-    <div className="mx-auto max-w-5xl space-y-5 px-8 py-6">
+    <div className="mx-auto max-w-5xl space-y-5 px-4 md:px-8 py-6">
       <header className="flex items-end justify-between">
         <div>
           <input className="mt-1 bg-transparent text-2xl font-semibold tracking-tight outline-none" value={name} onChange={(e) => setName(e.target.value)} />
@@ -81,7 +81,7 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
       >
         {err && <p className="mb-3 rounded-md bg-rose-400/10 px-3 py-2 text-xs text-rose-700 dark:text-rose-300">{err}</p>}
         {pr ? (
-          <div className="grid grid-cols-3 gap-5 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 text-sm">
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-ink-300"><FileText size={15} /> {resume}</div>
               <Info k="Current title" v={pr.current_title} />
@@ -107,7 +107,7 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
       </Section>
 
       <Section title="What to look for" desc="Used to build searches and as hard filters before anything is sent to the AI.">
-        <div className="grid grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div className="col-span-2">
             <label className="label">Target job titles</label>
             <ChipInput value={prefs.target_titles} onChange={(v) => set('target_titles', v)} placeholder="e.g. SAP EWM Consultant — press Enter" />
@@ -127,7 +127,7 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
             <ChipInput value={prefs.locations} onChange={(v) => set('locations', v)} placeholder="Bangalore, Hyderabad…" />
             <div className="mt-3"><Toggle checked={prefs.remote_ok} onChange={(v) => set('remote_ok', v)} label="Include remote jobs" /></div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="label">My years</label>
               <input type="number" className="field" value={prefs.years_experience} onChange={(e) => set('years_experience', Number(e.target.value))} />
@@ -175,7 +175,7 @@ export function ProfilePage({ profile, onChange, onDeleted }: { profile: Profile
       </Section>
 
       <Section title="Sources" desc="Where to look. The app never applies, never creates accounts, never asks for passwords.">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {SOURCES.filter((s) => !(window.api.isWeb && (s.key === 'linkedin' || s.key === 'naukri'))).map((s) => (
             <div key={s.key} className="rounded-md border border-line bg-ink-850/60 p-3.5">
               <Toggle checked={prefs.sources[s.key]} onChange={(v) => set('sources', { ...prefs.sources, [s.key]: v })} label={s.label} hint={s.hint} />

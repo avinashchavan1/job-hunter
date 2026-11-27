@@ -99,3 +99,6 @@ button { cursor: default; }
 @utility field { @apply w-full rounded-md border border-line-strong bg-field px-2.5 py-1.5 text-sm text-ink-100 placeholder:text-ink-400 outline-none focus:border-ink-400 focus:ring-2 focus:ring-ink-400/20; }
 @utility label { @apply mb-1 block text-xs font-medium text-ink-300; }
 @utility h-page { @apply text-xl font-semibold tracking-tight; }
+
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

@@ -81,7 +81,7 @@ export function Onboarding({
         <section className={cx('mt-8', !ready && 'pointer-events-none opacity-40')}>
           {!ready && <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold"><span className="grid h-5 w-5 place-items-center rounded-full bg-ink-700 text-[11px]">2</span> Add the resume</h2>}
           {ready && !onCancel && <p className="mb-4 flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400"><Check size={13} /> AI connected</p>}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="label">Name</label>
               <input className="field" placeholder="e.g. Sweta" value={name} onChange={(e) => setName(e.target.value)} />

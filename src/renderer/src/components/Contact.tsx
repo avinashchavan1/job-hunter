@@ -35,7 +35,7 @@ export function ContactEditor({ profileId, value, onChange, hasResume, resumeNam
   }
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {FIELDS.map((f) => (
           <div key={f.k}>
             <label className="label">{f.label}</label>

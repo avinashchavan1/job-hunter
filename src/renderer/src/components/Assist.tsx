@@ -101,7 +101,7 @@ export function InterviewPrep({ profileId, jobId }: { profileId: number; jobId: 
           </li>
         ))}
       </ol>
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <div>
           <h4 className="label">Brush up on</h4>
           <ul className="list-disc space-y-0.5 pl-4 text-ink-300">{p.revise.map((x, i) => <li key={i}>{x}</li>)}</ul>

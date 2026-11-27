@@ -11,7 +11,7 @@ export function RunsPage({ profile, running, embedded }: { profile: Profile; run
   }, [profile.id, running])
 
   return (
-    <div className={embedded ? 'space-y-5' : 'mx-auto max-w-4xl space-y-5 px-8 py-6'}>
+    <div className={embedded ? 'space-y-5' : 'mx-auto max-w-4xl space-y-5 px-4 md:px-8 py-6'}>
       {!embedded && <header>
         <h1 className="h-page">Runs</h1>
       </header>}

@@ -6,3 +6,11 @@
 body { background: var(--bg); cursor: auto; }
 button, a { cursor: pointer; }
 button:disabled { cursor: default; }
+
+/* Phones */
+@media (max-width: 767px) {
+  /* iPhone zooms into fields with text under 16px */
+  input, textarea, select { font-size: 16px !important; }
+  /* touch: no hover-only controls, comfortable tap targets */
+  .btn { min-height: 36px; }
+}

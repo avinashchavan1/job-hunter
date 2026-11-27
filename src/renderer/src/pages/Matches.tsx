@@ -85,8 +85,8 @@ export function Matches({ profile, running, onRun }: { profile: Profile; running
   ]
 
   return (
-    <div className="mx-auto max-w-5xl px-8 pb-10 pt-4">
-      <header className="flex items-end justify-between gap-4">
+    <div className="mx-auto max-w-5xl px-4 md:px-8 pb-10 pt-4">
+      <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div>
           <h1 className="h-page">{greeting()}, {first}</h1>
           <p className="mt-1 text-sm text-ink-400">
@@ -109,16 +109,16 @@ export function Matches({ profile, running, onRun }: { profile: Profile; running
 
       <div className="mt-4"><RunLog profileId={profile.id} running={running} /></div>
 
-      <div className="mt-5 flex items-center justify-between gap-3 border-b border-line">
-        <nav className="-mb-px flex gap-5">
+      <div className="mt-5 flex flex-col-reverse gap-3 border-b border-line md:flex-row md:items-center md:justify-between">
+        <nav className="no-scrollbar -mx-4 -mb-px flex gap-5 overflow-x-auto px-4 md:mx-0 md:px-0">
           {views.map((v) => (
             <button key={v.key} onClick={() => { setView(v.key); setOpen(null) }}
-              className={cx('border-b-2 pb-2 text-[13px] transition', view === v.key ? 'border-ink-100 font-medium text-ink-100' : 'border-transparent text-ink-400 hover:text-ink-100')}>
+              className={cx('shrink-0 whitespace-nowrap border-b-2 pb-2 text-[13px] transition', view === v.key ? 'border-ink-100 font-medium text-ink-100' : 'border-transparent text-ink-400 hover:text-ink-100')}>
               {v.label} <span className="tabular-nums text-ink-400">{lists[v.key].length}</span>
             </button>
           ))}
         </nav>
-        <div className="relative mb-1.5 w-56">
+        <div className="relative w-full md:mb-1.5 md:w-56">
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-400" />
           <input className="field !py-1 !pl-7 text-[13px]" placeholder="Filter" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
@@ -203,28 +203,28 @@ function JobRow({ m, trust, profile, open, onToggle, onStatus, onRescored }: {
 
   return (
     <li className={cx(open && 'bg-ink-900 -mx-3 rounded-lg px-3 ring-1 ring-line')}>
-      <div className="group flex items-center gap-4 py-3">
+      <div className="group flex flex-wrap items-center gap-x-4 gap-y-1 py-3 md:flex-nowrap">
         <ScoreRing score={m.score} />
         <button className="min-w-0 flex-1 text-left" onClick={onToggle}>
-          <div className="flex items-center gap-2">
-            <span className="truncate text-[14px] font-medium">{m.title}</span>
+          <div className="flex flex-wrap items-center gap-x-2">
+            <span className="line-clamp-2 text-[14px] font-medium md:truncate">{m.title}</span>
             {applied && <span className="text-xs text-emerald-700 dark:text-emerald-400">{m.status === 'applied' ? 'Applied' : m.status === 'interview' ? 'Interview' : 'Offer'}{m.status_at ? ` ${timeAgo(m.status_at)}` : ''}</span>}
             <TrustTag t={trust} />
           </div>
           <div className="mt-0.5 truncate text-xs text-ink-400">{meta.join(' · ')}</div>
           <Checks m={m} prefs={profile.prefs} />
         </button>
-        <div className="flex items-center gap-1">
-          <button className={cx('rounded-md p-1.5 hover:bg-hover', starred ? 'text-amber-500' : 'text-ink-400 opacity-0 group-hover:opacity-100', open && 'opacity-100')}
+        <div className="flex w-full items-center justify-end gap-1 md:w-auto">
+          <button className={cx('rounded-md p-1.5 hover:bg-hover', starred ? 'text-amber-500' : 'text-ink-400 max-md:opacity-100 opacity-0 group-hover:opacity-100', open && 'opacity-100')}
             title={starred ? 'Remove from shortlist' : 'Shortlist'} onClick={() => onStatus(starred ? 'new' : 'shortlisted')}>
             <Star size={15} fill={starred ? 'currentColor' : 'none'} />
           </button>
-          <button className={cx('rounded-md p-1.5 hover:bg-hover', applied ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-400 hover:text-ink-100 opacity-0 group-hover:opacity-100', open && 'opacity-100')}
+          <button className={cx('rounded-md p-1.5 hover:bg-hover', applied ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-400 hover:text-ink-100 max-md:opacity-100 opacity-0 group-hover:opacity-100', open && 'opacity-100')}
             title={applied ? 'Applied — click to undo' : 'Mark as applied'} aria-label={applied ? 'Undo applied' : 'Mark as applied'}
             onClick={() => { setAskApplied(false); onStatus(applied ? 'new' : 'applied') }}>
             <CheckCircle2 size={15} />
           </button>
-          <button className={cx('rounded-md p-1.5 text-ink-400 hover:bg-hover hover:text-ink-100', !open && 'opacity-0 group-hover:opacity-100')}
+          <button className={cx('rounded-md p-1.5 text-ink-400 hover:bg-hover hover:text-ink-100', !open && 'max-md:opacity-100 opacity-0 group-hover:opacity-100')}
             title={hidden ? 'Bring back' : 'Hide — not interested'} onClick={() => onStatus(hidden ? 'new' : 'skipped')}>
             {hidden ? <Undo2 size={15} /> : <EyeOff size={15} />}
           </button>
@@ -239,13 +239,13 @@ function JobRow({ m, trust, profile, open, onToggle, onStatus, onRescored }: {
         </div>
       </div>
       {askApplied && !applied && (
-        <div className="-mt-1 flex items-center gap-2 pb-3 pl-16 text-xs text-ink-300">
+        <div className="-mt-1 flex items-center gap-2 pb-3 text-xs text-ink-300 md:pl-16">
           Did you apply?
           <button className="btn btn-outline !px-2 !py-0.5 text-xs" onClick={() => { setAskApplied(false); onStatus('applied') }}><Check size={12} /> Yes, applied</button>
           <button className="btn btn-ghost !px-2 !py-0.5 text-xs" onClick={() => setAskApplied(false)}>Not yet</button>
         </div>
       )}
-      {err && <p className="-mt-1 pb-2 pl-16 text-xs text-rose-700 dark:text-rose-300">{err}</p>}
+      {err && <p className="-mt-1 pb-2 text-xs md:pl-16 text-rose-700 dark:text-rose-300">{err}</p>}
       {open && <JobDetail m={m} trust={trust} profile={profile} onStatus={onStatus} onRescored={onRescored} />}
     </li>
   )
@@ -278,7 +278,7 @@ function JobDetail({ m, trust, profile, onStatus, onRescored }: { m: Match; trus
   }
 
   return (
-    <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-8 border-t border-line pb-5 pt-4">
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:gap-8 border-t border-line pb-5 pt-4">
       <div className="space-y-4 text-sm">
         {trust.level !== 'direct' && trust.level !== 'ok' && (
           <div className={cx('border-l-2 pl-3', trust.level === 'risky' ? 'border-rose-500' : 'border-amber-500')}>
@@ -325,10 +325,10 @@ function JobDetail({ m, trust, profile, onStatus, onRescored }: { m: Match; trus
       </div>
 
       <div className="min-w-0">
-        <div className="mb-3 flex gap-1 border-b border-line">
+        <div className="no-scrollbar mb-3 flex gap-1 overflow-x-auto border-b border-line">
           {tools.map((t) => (
             <button key={t.key} onClick={() => setTool(t.key)}
-              className={cx('-mb-px border-b-2 px-2 pb-1.5 text-xs transition', tool === t.key ? 'border-ink-100 font-medium text-ink-100' : 'border-transparent text-ink-400 hover:text-ink-100')}>
+              className={cx('-mb-px shrink-0 whitespace-nowrap border-b-2 px-2 pb-1.5 text-xs transition', tool === t.key ? 'border-ink-100 font-medium text-ink-100' : 'border-transparent text-ink-400 hover:text-ink-100')}>
               {t.label}
             </button>
           ))}

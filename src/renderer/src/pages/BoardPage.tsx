@@ -51,22 +51,22 @@ export function BoardPage({ profile }: { profile: Profile }): ReactNode {
   const total = COLUMNS.reduce((a, c) => a + byCol[c.key].length, 0)
 
   return (
-    <div className="flex h-full flex-col px-8 py-6">
+    <div className="flex h-full flex-col px-4 py-4 md:px-8 md:py-6">
       <header className="mb-5">
         <h1 className="h-page">Tracker</h1>
         <p className="mt-1 text-sm text-ink-400">
-          Drag cards between columns. Shortlist or mark jobs applied from Matches and they appear here.
+          <span className="hidden md:inline">Drag cards between columns.</span><span className="md:hidden">Swipe across columns; change a status from the card.</span> Shortlist or mark jobs applied from Matches and they appear here.
           {total === 0 && ' Nothing tracked yet.'}
         </p>
       </header>
-      <div className="grid min-h-0 flex-1 grid-cols-5 gap-3">
+      <div className="-mx-4 flex min-h-0 flex-1 snap-x snap-mandatory gap-3 overflow-x-auto px-4 md:mx-0 md:grid md:grid-cols-5 md:overflow-visible md:px-0">
         {COLUMNS.map((c) => (
           <div
             key={c.key}
             onDragOver={(e) => { e.preventDefault(); setOver(c.key) }}
             onDragLeave={() => setOver(null)}
             onDrop={(e) => onDrop(e, c.key)}
-            className={cx('flex min-h-0 flex-col rounded-lg bg-ink-850/60 transition', over === c.key && 'ring-2 ring-ink-400/40')}
+            className={cx('flex min-h-0 w-[80vw] max-w-xs shrink-0 snap-start flex-col rounded-lg bg-ink-850/60 md:w-auto md:max-w-none transition', over === c.key && 'ring-2 ring-ink-400/40')}
           >
             <div className="flex items-baseline justify-between px-3 pb-2 pt-3">
               <div>
@@ -77,14 +77,14 @@ export function BoardPage({ profile }: { profile: Profile }): ReactNode {
             </div>
             <div className="min-h-0 flex-1 space-y-2 overflow-auto px-2 pb-3">
               {byCol[c.key].map((m) => (
-                <Card key={m.id} m={m} onPrep={() => setPrep(m)} onDragStart={(e) => { e.dataTransfer.setData('text/plain', m.id); setDrag(m.id) }} onNotes={(n) => move(m.id, m.status, n)} />
+                <Card key={m.id} m={m} onPrep={() => setPrep(m)} onDragStart={(e) => { e.dataTransfer.setData('text/plain', m.id); setDrag(m.id) }} onNotes={(n) => move(m.id, m.status, n)} onMove={(s) => move(m.id, s)} />
               ))}
             </div>
           </div>
         ))}
       </div>
       {prep && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/30 p-8" onClick={() => setPrep(null)}>
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/30 p-3 md:p-8" onClick={() => setPrep(null)}>
           <div className="card max-h-full w-full max-w-2xl overflow-auto p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
@@ -101,7 +101,7 @@ export function BoardPage({ profile }: { profile: Profile }): ReactNode {
   )
 }
 
-function Card({ m, onDragStart, onNotes, onPrep }: { m: Match; onDragStart: (e: DragEvent) => void; onNotes: (n: string) => void; onPrep: () => void }): ReactNode {
+function Card({ m, onDragStart, onNotes, onPrep, onMove }: { m: Match; onDragStart: (e: DragEvent) => void; onNotes: (n: string) => void; onPrep: () => void; onMove: (s: Status) => void }): ReactNode {
   const [editing, setEditing] = useState(false)
   const [notes, setNotes] = useState(m.notes || '')
   const days = m.status_at ? (Date.now() - new Date(m.status_at).getTime()) / 86400000 : 0
@@ -135,6 +135,9 @@ function Card({ m, onDragStart, onNotes, onPrep }: { m: Match; onDragStart: (e: 
       )}
       <div className="mt-2 flex items-center justify-between text-[11px] text-ink-400">
         <span>{m.status_at ? timeAgo(m.status_at) : ''}</span>
+        <select className="rounded border border-line bg-field px-1 py-0.5 text-[12px] text-ink-100 md:hidden" value={m.status} onChange={(e) => onMove(e.target.value as Status)} aria-label="Move to">
+          {COLUMNS.map((c) => <option key={c.key} value={c.key}>{c.title}</option>)}
+        </select>
         <span className="flex gap-1">
           {(m.status === 'interview' || m.status === 'applied') && <button className="rounded p-1 hover:bg-hover hover:text-ink-100" title="Interview prep" onClick={onPrep}><GraduationCap size={13} /></button>}
           <button className="rounded p-1 hover:bg-hover hover:text-ink-100" title="Notes" onClick={() => setEditing(true)}><StickyNote size={13} /></button>
